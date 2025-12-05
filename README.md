@@ -4,7 +4,7 @@
 
 ![VibeCode Logo](https://img.shields.io/badge/VibeCode-AI%20IDE-blue?style=for-the-badge)
 
-**🚀 Автономная система разработки с поддержкой локальных и внешних AI моделей**
+**🚀 Autonomous development system with support for local and external AI models**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](https://github.com/Pletnev86/VibeCode/releases)
@@ -15,138 +15,140 @@
 [![Node.js](https://img.shields.io/badge/Node.js-16+-green.svg)](https://nodejs.org/)
 [![Electron](https://img.shields.io/badge/Electron-39.2.4-blue.svg)](https://www.electronjs.org/)
 
+[English](README.md) | [Русский](README.ru.md)
+
 </div>
 
 ---
 
-## 📖 Что такое VibeCode?
+## 📖 What is VibeCode?
 
-**VibeCode** — это автономная AI-система разработки, которая позволяет создавать и развивать программное обеспечение с помощью локальных и облачных AI моделей. Система способна **самостоятельно разрабатывать себя** на основе Vision и Roadmap документов, используя AI для генерации кода, рефакторинга и исправления ошибок.
+**VibeCode** is an autonomous AI development system that allows you to create and develop software using local and cloud AI models. The system can **self-develop** based on Vision and Roadmap documents, using AI for code generation, refactoring, and bug fixes.
 
-### 🎯 Ключевые особенности
+### 🎯 Key Features
 
-- 🤖 **Локальные AI модели** — работайте без интернета через LM Studio
-- 🌐 **Облачные модели** — поддержка OpenRouter, GPT API
-- 🔄 **Автоматическое переключение** — умный выбор модели по задаче
-- 🚀 **Self-Build** — автоматическая генерация проекта из Vision/Roadmap
-- 📚 **База знаний** — сохранение и поиск решений
-- 🔧 **Самопрограммирование** — система улучшает сама себя
-- 💬 **Интуитивный интерфейс** — простой чат с AI
-- ⭐ **Система оценки** — улучшение ответов на основе обратной связи
+- 🤖 **Local AI Models** — work offline via LM Studio
+- 🌐 **Cloud Models** — support for OpenRouter, GPT API
+- 🔄 **Automatic Switching** — smart model selection by task
+- 🚀 **Self-Build** — automatic project generation from Vision/Roadmap
+- 📚 **Knowledge Base** — save and search solutions
+- 🔧 **Self-Programming** — system improves itself
+- 💬 **Intuitive Interface** — simple chat with AI
+- ⭐ **Rating System** — improve responses based on feedback
 
-### 🆚 Отличия от других решений
+### 🆚 Differences from Other Solutions
 
-| Особенность | VibeCode | Cursor | GitHub Copilot |
-|------------|----------|--------|----------------|
-| Локальные модели | ✅ | ❌ | ❌ |
-| Самопрограммирование | ✅ | ❌ | ❌ |
-| База знаний | ✅ | ❌ | ❌ |
-| Бесплатно | ✅ | 💰 | 💰 |
-| Офлайн работа | ✅ | ❌ | ❌ |
+| Feature | VibeCode | Cursor | GitHub Copilot |
+|---------|----------|--------|----------------|
+| Local Models | ✅ | ❌ | ❌ |
+| Self-Programming | ✅ | ❌ | ❌ |
+| Knowledge Base | ✅ | ❌ | ❌ |
+| Free | ✅ | 💰 | 💰 |
+| Offline Work | ✅ | ❌ | ❌ |
 | Open Source | ✅ | ❌ | ❌ |
 
 ---
 
-## 📸 Скриншоты
+## 📸 Screenshots
 
-> **Примечание:** Добавьте скриншоты интерфейса после создания
+> **Note:** Add interface screenshots after creation
 
 <!-- 
-![Главный интерфейс](screenshots/main.png)
-![Self-Build в действии](screenshots/selfbuild.png)
-![Чат с AI](screenshots/chat.png)
-![База знаний](screenshots/knowledge-base.png)
+![Main Interface](screenshots/main.png)
+![Self-Build in Action](screenshots/selfbuild.png)
+![AI Chat](screenshots/chat.png)
+![Knowledge Base](screenshots/knowledge-base.png)
 -->
 
 ---
 
-## 🚀 Быстрая установка
+## 🚀 Quick Installation
 
-### Требования
+### Requirements
 
-- **Node.js** 16+ и **npm** 8+
-- **LM Studio** (опционально, для локальных моделей)
-- **OpenRouter API ключ** (опционально, для облачных моделей)
+- **Node.js** 16+ and **npm** 8+
+- **LM Studio** (optional, for local models)
+- **OpenRouter API Key** (optional, for cloud models)
 
-### Шаг 1: Клонирование
+### Step 1: Clone
 
 ```bash
 git clone https://github.com/Pletnev86/VibeCode.git
 cd VibeCode
 ```
 
-### Шаг 2: Установка зависимостей
+### Step 2: Install Dependencies
 
 ```bash
 npm install
 ```
 
-### Шаг 3: Настройка конфигурации
+### Step 3: Configure
 
 ```bash
-# Скопируйте пример конфигурации
+# Copy example configuration
 cp config.json.example config.json
 
-# Откройте config.json и добавьте ваш OpenRouter API ключ (опционально)
+# Open config.json and add your OpenRouter API key (optional)
 ```
 
-### Шаг 4: Запуск
+### Step 4: Run
 
 ```bash
 npm start
 ```
 
-### Подготовка LM Studio (для локальных моделей)
+### LM Studio Setup (for local models)
 
-1. Скачайте и установите [LM Studio](https://lmstudio.ai/)
-2. Загрузите модели:
-   - `deepseek/deepseek-r1-0528-qwen3-8b` (для reasoning)
-   - `nomic-ai-gpt4all-falcon` (для генерации кода)
-3. Запустите сервер на порту **1234**
+1. Download and install [LM Studio](https://lmstudio.ai/)
+2. Load models:
+   - `deepseek/deepseek-r1-0528-qwen3-8b` (for reasoning)
+   - `nomic-ai-gpt4all-falcon` (for code generation)
+3. Start server on port **1234**
 
-📖 **Подробная инструкция:** [SETUP.md](SETUP.md)
-
----
-
-## 💻 Как пользоваться
-
-### Self-Build (Генерация проекта)
-
-1. Нажмите кнопку **"Self-Build"** в боковой панели
-2. Система автоматически:
-   - Прочитает `docs/Vision.md` и `docs/Roadmap.md`
-   - Сформирует промпт для AI
-   - Сгенерирует файлы проекта
-   - Сохранит их в `/src`
-
-### Чат с AI
-
-1. Выберите AI провайдер:
-   - **LM Studio** — для локальных моделей (бесплатно, офлайн)
-   - **OpenRouter** — для облачных моделей (требует API ключ)
-2. Выберите модель из списка
-3. Введите запрос в поле ввода
-4. Нажмите "Отправить"
-
-### Доработка модулей
-
-1. Нажмите кнопку **"Доработать модули"**
-2. Опишите задачу (например: "Добавь обработку ошибок в router.js")
-3. Система проанализирует модули и внесет изменения
-
-### Анализ проекта
-
-1. Нажмите кнопку **"Анализ проекта"**
-2. Укажите путь к проекту
-3. Система проанализирует структуру и создаст описание
-
-📖 **Подробная инструкция:** [USAGE.md](USAGE.md)
+📖 **Detailed Guide:** [docs/en/SETUP.md](docs/en/SETUP.md)
 
 ---
 
-## 🏛️ Архитектура
+## 💻 How to Use
 
-VibeCode построен на модульной архитектуре:
+### Self-Build (Project Generation)
+
+1. Click **"Self-Build"** button in the sidebar
+2. System automatically:
+   - Reads `docs/Vision.md` and `docs/Roadmap.md`
+   - Forms prompt for AI
+   - Generates project files
+   - Saves them to `/src`
+
+### AI Chat
+
+1. Select AI provider:
+   - **LM Studio** — for local models (free, offline)
+   - **OpenRouter** — for cloud models (requires API key)
+2. Select model from list
+3. Enter query in input field
+4. Click "Send"
+
+### Module Enhancement
+
+1. Click **"Enhance Modules"** button
+2. Describe task (e.g., "Add error handling to router.js")
+3. System analyzes modules and makes changes
+
+### Project Analysis
+
+1. Click **"Analyze Project"** button
+2. Specify project path
+3. System analyzes structure and creates description
+
+📖 **Detailed Guide:** [docs/en/USAGE.md](docs/en/USAGE.md)
+
+---
+
+## 🏛️ Architecture
+
+VibeCode is built on modular architecture:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -168,17 +170,17 @@ VibeCode построен на модульной архитектуре:
 └──────────────┘ └─────────────┘ └─────────────┘
 ```
 
-### Основные компоненты
+### Main Components
 
-- **Electron App** (`src/`) — десктопное приложение с UI
-- **AI Router** (`ai/router.js`) — маршрутизация запросов к AI моделям
-- **Agents** (`agents/`) — автономные агенты для различных задач
-- **Libraries** (`lib/`) — вспомогательные библиотеки
+- **Electron App** (`src/`) — desktop application with UI
+- **AI Router** (`ai/router.js`) — routes requests to AI models
+- **Agents** (`agents/`) — autonomous agents for various tasks
+- **Libraries** (`lib/`) — helper libraries
 
-### Поток данных
+### Data Flow
 
 ```
-Пользователь (UI)
+User (UI)
     ↓
 Electron Main Process (main.js)
     ↓
@@ -188,83 +190,82 @@ SelfDev Agent / Module Enhancer
     ↓
 AI Router → LM Studio / OpenRouter
     ↓
-Генерация кода
+Code Generation
     ↓
-Парсинг файлов
+File Parsing
     ↓
-Execution Layer (безопасное сохранение)
+Execution Layer (safe saving)
     ↓
-База знаний (сохранение результата)
+Knowledge Base (save result)
 ```
 
-📖 **Подробная архитектура:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+📖 **Detailed Architecture:** [docs/en/ARCHITECTURE.md](docs/en/ARCHITECTURE.md)
 
 ---
 
 ## 🗺️ Roadmap
 
-### ✅ Текущая версия: 0.1.0 (MVP)
+### ✅ Current Version: 0.1.0 (MVP)
 
-- [x] Electron приложение
+- [x] Electron application
 - [x] AI Router (LM Studio + OpenRouter)
 - [x] SelfDev Agent
-- [x] База знаний (SQLite)
-- [x] Чат-интерфейс
-- [x] Self-Build функциональность
+- [x] Knowledge Base (SQLite)
+- [x] Chat interface
+- [x] Self-Build functionality
 - [x] Module Enhancer
-- [x] Переключение между провайдерами
+- [x] Provider switching
 
-### 🚧 В разработке: v0.2
+### 🚧 In Development: v0.2
 
 - [ ] Refactor Agent
 - [ ] Fix Agent
 - [ ] Explain Agent
-- [ ] Улучшение парсинга файлов в Self-Build
-- [ ] Исправление базы знаний (better-sqlite3)
-- [ ] Полное восстановление UI функционала
+- [ ] Improve file parsing in Self-Build
+- [ ] Fix knowledge base (better-sqlite3)
+- [ ] Full UI functionality restoration
 
-### 📅 Планируется: v0.5
+### 📅 Planned: v0.5
 
-- [ ] Monaco Editor интеграция
-- [ ] Автотестирование кода
+- [ ] Monaco Editor integration
+- [ ] Code autotesting
 - [ ] PC-Control Agent (AutoIt)
-- [ ] Multi-tab редактор
-- [ ] Vision система для чтения скриншотов
+- [ ] Multi-tab editor
+- [ ] Vision system for screenshot reading
 
-### 🔮 Будущее: v1.0+
+### 🔮 Future: v1.0+
 
-- [ ] Полный Cursor Clone функционал
-- [ ] Whisper для голосового ввода
-- [ ] Фоновая работа агентов
-- [ ] Локальные Vision+Code модели
+- [ ] Full Cursor Clone functionality
+- [ ] Whisper for voice input
+- [ ] Background agent work
+- [ ] Local Vision+Code models
 
-📖 **Полный Roadmap:** [docs/Roadmap.md](docs/Roadmap.md)
-
----
-
-## 📚 Документация
-
-### Для пользователей
-- [🔧 SETUP.md](SETUP.md) - **Инструкция по настройке (OpenRouter, LM Studio)**
-- [🚀 QUICK_START.md](QUICK_START.md) - Быстрый старт
-- [📘 USAGE.md](USAGE.md) - Руководство пользователя
-- [🔄 PROVIDER_SWITCH.md](docs/PROVIDER_SWITCH.md) - Переключение провайдеров
-- [🔧 TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Решение проблем
-
-### Для разработчиков
-- [🎯 CURSOR_SETUP.md](CURSOR_SETUP.md) - **Настройка для Cursor IDE**
-- [🤝 CONTRIBUTING.md](CONTRIBUTING.md) - **Задачи для разработчиков**
-- [📖 Vision.md](docs/Vision.md) - Видение проекта
-- [🗺️ Roadmap.md](docs/Roadmap.md) - План развития
-- [🏛️ ARCHITECTURE.md](docs/ARCHITECTURE.md) - Архитектура системы
-- [💡 EXAMPLES.md](docs/EXAMPLES.md) - Примеры использования
-- [🔧 SELF_DEVELOPMENT.md](SELF_DEVELOPMENT.md) - Самопрограммирование
+📖 **Full Roadmap:** [docs/en/Roadmap.md](docs/en/Roadmap.md)
 
 ---
 
-## 🔧 Разработка
+## 📚 Documentation
 
-### Установка для разработки
+### For Users
+- [🔧 SETUP.md](docs/en/SETUP.md) - **Setup Guide (OpenRouter, LM Studio)**
+- [🚀 QUICK_START.md](docs/en/QUICK_START.md) - Quick Start
+- [📘 USAGE.md](docs/en/USAGE.md) - User Guide
+- [🔄 PROVIDER_SWITCH.md](docs/en/PROVIDER_SWITCH.md) - Provider Switching
+- [🔧 TROUBLESHOOTING.md](docs/en/TROUBLESHOOTING.md) - Troubleshooting
+
+### For Developers
+- [🎯 CURSOR_SETUP.md](docs/en/CURSOR_SETUP.md) - **Setup for Cursor IDE**
+- [🤝 CONTRIBUTING.md](docs/en/CONTRIBUTING.md) - **Contributor Guide**
+- [📖 Vision.md](docs/en/Vision.md) - Project Vision
+- [🗺️ Roadmap.md](docs/en/Roadmap.md) - Development Plan
+- [🏛️ ARCHITECTURE.md](docs/en/ARCHITECTURE.md) - System Architecture
+- [💡 EXAMPLES.md](docs/en/EXAMPLES.md) - Usage Examples
+
+---
+
+## 🔧 Development
+
+### Development Setup
 
 ```bash
 git clone https://github.com/Pletnev86/VibeCode.git
@@ -272,79 +273,78 @@ cd VibeCode
 npm install
 ```
 
-### Скрипты
+### Scripts
 
 ```bash
-npm start          # Запуск приложения
-npm run dev        # Режим разработки (с DevTools)
-npm run rebuild    # Пересборка native модулей
-npm test           # Запуск тестов
+npm start          # Run application
+npm run dev        # Development mode (with DevTools)
+npm run rebuild    # Rebuild native modules
+npm test           # Run tests
 ```
 
-### Структура проекта
+### Project Structure
 
 ```
 VibeCode/
-├── src/              # Electron приложение
-│   ├── main.js       # Главный процесс (IPC обработчики)
-│   ├── preload.js    # IPC мост
-│   ├── index.html    # UI структура
-│   └── ui.js         # UI логика
-├── ai/               # AI Router и провайдеры
-│   └── router.js     # Маршрутизатор запросов к AI
-├── agents/           # Агенты системы
-│   ├── selfdev.js    # SelfDev Agent (саморазработка)
-│   ├── module-enhancer.js  # Доработка модулей
-│   └── inter-agent-controller.js  # Контроллер агентов
-├── lib/              # Библиотеки
-│   ├── knowledge-base.js      # База знаний (SQLite)
-│   ├── document-watcher.js   # Отслеживание изменений
-│   ├── execution-layer.js    # Безопасное выполнение
-│   └── project-analyzer.js   # Анализ проектов
-├── docs/             # Документация
-│   ├── Vision.md     # Видение проекта
-│   ├── Roadmap.md    # План развития
-│   └── ARCHITECTURE.md  # Архитектура
-└── config.json       # Конфигурация
+├── src/              # Electron application
+│   ├── main.js       # Main process (IPC handlers)
+│   ├── preload.js    # IPC bridge
+│   ├── index.html    # UI structure
+│   └── ui.js         # UI logic
+├── ai/               # AI Router and providers
+│   └── router.js     # Request router to AI
+├── agents/           # System agents
+│   ├── selfdev.js    # SelfDev Agent (self-development)
+│   ├── module-enhancer.js  # Module enhancement
+│   └── inter-agent-controller.js  # Agent controller
+├── lib/              # Libraries
+│   ├── knowledge-base.js      # Knowledge Base (SQLite)
+│   ├── document-watcher.js   # Change tracking
+│   ├── execution-layer.js    # Safe execution
+│   └── project-analyzer.js   # Project analysis
+├── docs/             # Documentation
+│   ├── en/           # English documentation
+│   └── ru/           # Russian documentation
+└── config.json       # Configuration
 ```
 
 ---
 
-## 🤝 Участие в разработке
+## 🤝 Contributing
 
-Мы приветствуем вклад в проект! 
+We welcome contributions to the project! 
 
-1. Форкните репозиторий
-2. Создайте ветку (`git checkout -b feature/AmazingFeature`)
-3. Закоммитьте изменения (`git commit -m 'Add AmazingFeature'`)
-4. Запушьте в ветку (`git push origin feature/AmazingFeature`)
-5. Откройте Pull Request
+1. Fork the repository
+2. Create a branch (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add AmazingFeature'`)
+4. Push to branch (`git push origin feature/AmazingFeature`)
+5. Open Pull Request
 
-📖 **Подробнее:** [CONTRIBUTING.md](CONTRIBUTING.md)
-
----
-
-## 📊 Статус проекта
-
-🚧 **В активной разработке**
-
-- **Текущая версия:** 0.1.0
-- **Статус:** MVP готов, работа над v0.2
-- **Лицензия:** Apache License 2.0
+📖 **More Info:** [docs/en/CONTRIBUTING.md](docs/en/CONTRIBUTING.md)
 
 ---
 
-## 👥 Авторы
+## 📊 Project Status
+
+🚧 **In Active Development**
+
+- **Current Version:** 0.1.0
+- **Status:** MVP ready, working on v0.2
+- **License:** Apache License 2.0
+
+---
+
+## 👥 Authors
 
 - **Pletnev86** - [GitHub](https://github.com/Pletnev86)
 
 ---
 
-## 🙏 Благодарности
+## 🙏 Acknowledgments
 
-- [LM Studio](https://lmstudio.ai/) - за возможность использования локальных моделей
-- [OpenRouter](https://openrouter.ai/) - за API для доступа к различным моделям
-- [Electron](https://www.electronjs.org/) - за фреймворк для десктопных приложений
+- [LM Studio](https://lmstudio.ai/) - for local model support
+- [OpenRouter](https://openrouter.ai/) - for API access to various models
+- [Electron](https://www.electronjs.org/) - for desktop application framework
 
 ---
 
@@ -356,8 +356,8 @@ This project is licensed under the Apache License 2.0 — see the [LICENSE](LICE
 
 <div align="center">
 
-⭐ **Если проект вам понравился, поставьте звезду!**
+⭐ **If you liked the project, give it a star!**
 
-[⬆ Наверх](#vibecode)
+[⬆ Back to Top](#vibecode)
 
 </div>
