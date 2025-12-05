@@ -1,0 +1,55 @@
+{
+  "ai": {
+    "providers": {
+      "lmStudio": {
+        "enabled": true,
+        "baseUrl": "http://localhost:1234/v1",
+        "models": {
+          "deepseek": "deepseek/deepseek-r1-0528-qwen3-8b",
+          "falcon": "nomic-ai-gpt4all-falcon"
+        },
+        "timeout": 120000
+      },
+      "openRouter": {
+        "enabled": true,
+        "apiKey": "ВАШ_OPENROUTER_API_KEY_ЗДЕСЬ",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "timeout": 60000,
+        "defaultModel": "openai/gpt-4o-mini",
+        "selectedModel": "gpt4",
+        "models": {
+          "gpt4": "openai/gpt-4o-mini",
+          "claude": "anthropic/claude-3.5-sonnet",
+          "deepseek": "deepseek/deepseek-chat"
+        },
+        "autoFallback": true,
+        "checkTokens": true
+      },
+      "gpt": {
+        "enabled": false,
+        "apiKey": "ВАШ_OPENAI_API_KEY_ЗДЕСЬ",
+        "baseUrl": "https://api.openai.com/v1",
+        "timeout": 60000
+      }
+    },
+    "smartAutoMode": {
+      "enabled": true,
+      "defaultModel": "falcon",
+      "fallbackModel": "deepseek",
+      "openRouterFallback": true,
+      "checkTokens": true
+    }
+  },
+  "agents": {
+    "selfdev": {
+      "enabled": true,
+      "visionPath": "./docs/Vision.md",
+      "roadmapPath": "./docs/Roadmap.md"
+    }
+  },
+  "execution": {
+    "timeout": 30000,
+    "isolated": true
+  }
+}
+

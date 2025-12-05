@@ -94,13 +94,20 @@ CursorX/
 
 ## 📚 Документация
 
-- [📖 Vision.md](docs/Vision.md) - Видение проекта и цели
-- [🗺️ Roadmap.md](docs/Roadmap.md) - План развития
+### Для пользователей
+- [🔧 SETUP.md](SETUP.md) - **Инструкция по настройке (OpenRouter, LM Studio)**
+- [🚀 QUICK_START.md](QUICK_START.md) - Быстрый старт
 - [📘 USAGE.md](USAGE.md) - Инструкция по использованию
 - [🔄 PROVIDER_SWITCH.md](docs/PROVIDER_SWITCH.md) - Переключение между провайдерами
+- [🔧 TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Решение проблем
+
+### Для разработчиков
+- [🎯 CURSOR_SETUP.md](CURSOR_SETUP.md) - **Настройка для Cursor IDE**
+- [🤝 CONTRIBUTING.md](CONTRIBUTING.md) - **Задачи для разработчиков**
+- [📖 Vision.md](docs/Vision.md) - Видение проекта и цели
+- [🗺️ Roadmap.md](docs/Roadmap.md) - План развития
 - [🏛️ ARCHITECTURE.md](docs/ARCHITECTURE.md) - Архитектура системы
 - [💡 EXAMPLES.md](docs/EXAMPLES.md) - Примеры использования
-- [🚀 QUICK_START.md](QUICK_START.md) - Быстрый старт
 - [🔧 SELF_DEVELOPMENT.md](SELF_DEVELOPMENT.md) - Самопрограммирование
 
 ## 🎯 Использование
