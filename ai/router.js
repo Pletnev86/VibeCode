@@ -186,7 +186,7 @@ class AIRouter {
         headers: {
           'Authorization': `Bearer ${this.providers.openRouter.apiKey}`,
           'HTTP-Referer': 'http://localhost',
-          'X-Title': 'Local Cursor X'
+          'X-Title': 'VibeCode'
         }
       });
       const isAvailable = !!(response.status === 200 && response.data);
@@ -237,7 +237,7 @@ class AIRouter {
             'Authorization': `Bearer ${this.providers.openRouter.apiKey}`,
             'Content-Type': 'application/json',
             'HTTP-Referer': 'http://localhost',
-            'X-Title': 'Local Cursor X'
+            'X-Title': 'VibeCode'
           }
         }
       );
@@ -538,7 +538,7 @@ class AIRouter {
             headers: {
               'Authorization': `Bearer ${this.providers.openRouter.apiKey}`,
               'HTTP-Referer': 'http://localhost',
-              'X-Title': 'Local Cursor X'
+              'X-Title': 'VibeCode'
             }
           });
           models.external = response.data.data || [];

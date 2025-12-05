@@ -238,7 +238,7 @@ class SelfDevAgent {
     const vision = this.readVision();
     const roadmap = this.readRoadmap();
     
-    let prompt = `Ты - AI агент для самопрограммирования проекта Local Cursor X.
+    let prompt = `Ты - AI агент для самопрограммирования проекта VibeCode.
 
 ## Vision проекта:
 ${vision}

@@ -78,7 +78,7 @@ app.whenReady().then(createWindow);
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Local Cursor X</title>
+  <title>VibeCode</title>
 </head>
 <body>
   <h1>Hello World</h1>
