@@ -2,7 +2,7 @@
 
 🚀 **Автономная система разработки с поддержкой локальных и внешних AI моделей**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Node.js](https://img.shields.io/badge/Node.js-16+-green.svg)](https://nodejs.org/)
 [![Electron](https://img.shields.io/badge/Electron-39.2.4-blue.svg)](https://www.electronjs.org/)
 
@@ -162,7 +162,7 @@ npm test           # Запуск тестов
 
 ## 📝 Лицензия
 
-Этот проект распространяется под лицензией MIT. См. файл [LICENSE](LICENSE) для подробностей.
+Этот проект распространяется под лицензией Apache License 2.0. См. файл [LICENSE](LICENSE) для подробностей.
 
 ## 👥 Авторы
 
