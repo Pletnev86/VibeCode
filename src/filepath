@@ -1,0 +1,40 @@
+/src/main.js
+// Импортируем необходимые модули
+const { app, BrowserWindow, ipcMain } = require('electron');
+const path = require('path');
+
+// Функция для создания главного окна приложения
+function createWindow() {
+    const mainWindow = new BrowserWindow({
+        width: 800, // Ширина окна
+        height: 600, // Высота окна
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'), // Подключение preload.js
+            contextIsolation: true, // Изоляция контекста
+            enableRemoteModule: false // Отключение удаленного модуля
+        }
+    });
+
+    // Загружаем index.html в окно
+    mainWindow.loadFile('index.html');
+
+    // Открываем инструменты разработчика (необязательно)
+    // mainWindow.webContents.openDevTools();
+}
+
+// Запускаем приложение, когда оно готово
+app.whenReady().then(createWindow);
+
+// Завершаем приложение, когда все окна закрыты
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
+});
+
+// Создаем новое окно при повторном открытии приложения на macOS
+app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+    }
+});

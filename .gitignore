@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+build/
+out/
+*.asar
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+debug-response.txt
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.code-workspace
+
+# Environment
+.env
+.env.local
+config.json
+
+# Database
+data/
+*.db
+*.db-journal
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Sensitive data
+data/knowledge.db
+data/knowledge.db-journal
+
