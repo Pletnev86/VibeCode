@@ -86,7 +86,7 @@
 ## Структура проекта
 
 ```
-CursorX/
+VibeCode/
 ├── src/                    ✅ Electron приложение
 │   ├── main.js            ✅ Главный процесс
 │   ├── preload.js         ✅ IPC мост
