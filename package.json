@@ -1,7 +1,7 @@
 {
-  "name": "local-cursor-x",
+  "name": "vibecode",
   "version": "0.1.0",
-  "description": "Local Cursor X - автономная система разработки с поддержкой локальных и внешних AI моделей",
+  "description": "VibeCode - автономная система разработки с поддержкой локальных и внешних AI моделей",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
@@ -12,7 +12,7 @@
   "keywords": [
     "electron",
     "ai",
-    "cursor",
+    "vibecode",
     "self-dev",
     "lm-studio"
   ],

@@ -1,4 +1,4 @@
-# Roadmap — Local Cursor X
+# Roadmap — VibeCode
 
 ## Цель Roadmap
 
