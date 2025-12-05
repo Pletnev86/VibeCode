@@ -7,11 +7,13 @@
 **🚀 Автономная система разработки с поддержкой локальных и внешних AI моделей**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](https://github.com/Pletnev86/VibeCode)
+[![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](https://github.com/Pletnev86/VibeCode/releases)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Pletnev86/VibeCode/ci.yml?label=build)](https://github.com/Pletnev86/VibeCode/actions)
+[![Downloads](https://img.shields.io/github/downloads/Pletnev86/VibeCode/total?color=green&label=downloads)](https://github.com/Pletnev86/VibeCode/releases)
+[![Contributors](https://img.shields.io/github/contributors/Pletnev86/VibeCode?color=blue)](https://github.com/Pletnev86/VibeCode/graphs/contributors)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com/Pletnev86/VibeCode)
 [![Node.js](https://img.shields.io/badge/Node.js-16+-green.svg)](https://nodejs.org/)
 [![Electron](https://img.shields.io/badge/Electron-39.2.4-blue.svg)](https://www.electronjs.org/)
-[![Downloads](https://img.shields.io/github/downloads/Pletnev86/VibeCode/total?color=green)](https://github.com/Pletnev86/VibeCode/releases)
-[![Build Status](https://img.shields.io/github/workflow/status/Pletnev86/VibeCode/CI?label=build)](https://github.com/Pletnev86/VibeCode/actions)
 
 </div>
 
