@@ -61,11 +61,13 @@ function initializeUI() {
     // Выбор модели LM Studio
     document.getElementById('lmModel').addEventListener('change', (e) => {
         currentModel = e.target.value;
+        updateStatus(`🔄 Модель LM Studio: ${currentModel}`);
     });
     
     // Выбор модели OpenRouter
     document.getElementById('openRouterModel').addEventListener('change', (e) => {
         currentOpenRouterModel = e.target.value;
+        updateStatus(`🔄 Модель OpenRouter: ${currentOpenRouterModel}`);
     });
     
     // Периодическое обновление логов
@@ -101,9 +103,9 @@ async function sendMessage() {
         
         // Отправляем запрос
         const result = await window.api.sendChatMessage(message, {
-            useOpenRouter,
-            model,
-            openRouterModel
+            useOpenRouter: useOpenRouter,
+            model: model,
+            openRouterModel: openRouterModel
         });
         
         console.log('📥 Результат получен:', result);
@@ -114,6 +116,26 @@ async function sendMessage() {
         if (result.success) {
             const response = result.response || result;
             const executionTime = ((Date.now() - startTime) / 1000).toFixed(2);
+            
+            // Показываем информацию о сохраненных файлах
+            if (result.metadata && result.metadata.filesSaved > 0) {
+                addMessage('system', `💾 Автоматически сохранено файлов: ${result.metadata.filesSaved}`);
+                if (result.metadata.savedFiles && result.metadata.savedFiles.length > 0) {
+                    result.metadata.savedFiles.forEach(file => {
+                        addMessage('system', `  ✅ ${file}`);
+                    });
+                }
+            }
+            
+            // Показываем информацию об удаленных файлах
+            if (result.metadata && result.metadata.filesDeleted > 0) {
+                addMessage('system', `🗑️ Автоматически удалено файлов: ${result.metadata.filesDeleted}`);
+                if (result.metadata.deletedFiles && result.metadata.deletedFiles.length > 0) {
+                    result.metadata.deletedFiles.forEach(file => {
+                        addMessage('system', `  ❌ ${file}`);
+                    });
+                }
+            }
             
             // Добавляем ответ AI
             let responseText = typeof response === 'string' ? response : JSON.stringify(response, null, 2);
@@ -180,18 +202,106 @@ async function handleSelfBuild() {
  * Обработка анализа проекта
  */
 async function handleAnalyzeProject() {
-    addMessage('system', '📊 Анализ проекта...');
-    // TODO: Реализовать анализ проекта
-    addMessage('system', '⚠️ Функция в разработке');
+    const button = document.getElementById('analyzeProject');
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = '⏳ Анализ...';
+    
+    addMessage('system', '📊 Начало анализа проекта...');
+    
+    try {
+        const result = await window.api.analyzeProject('.');
+        
+        if (result.success) {
+            addMessage('system', '✅ Анализ проекта завершен!');
+            if (result.analysis) {
+                addMessage('ai', JSON.stringify(result.analysis, null, 2));
+            }
+        } else {
+            addMessage('system', `❌ Ошибка анализа: ${result.error || 'Неизвестная ошибка'}`);
+        }
+    } catch (error) {
+        addMessage('system', `❌ Ошибка: ${error.message}`);
+    } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+    }
 }
 
 /**
  * Обработка доработки модулей
  */
 async function handleEnhanceModules() {
-    addMessage('system', '🔧 Доработка модулей...');
-    // TODO: Реализовать доработку модулей
-    addMessage('system', '⚠️ Функция в разработке');
+    console.log('🔧 handleEnhanceModules вызван');
+    
+    // Проверяем наличие window.api
+    if (!window.api) {
+        console.error('❌ window.api не определен');
+        addMessage('system', '❌ Ошибка: window.api не определен. Перезагрузите приложение.');
+        return;
+    }
+    
+    // Проверяем наличие метода enhanceModules
+    if (!window.api.enhanceModules) {
+        console.error('❌ window.api.enhanceModules не определен');
+        addMessage('system', '❌ Ошибка: window.api.enhanceModules не определен. Проверьте preload.js.');
+        return;
+    }
+    
+    const task = prompt('Введите задачу для доработки модулей:');
+    if (!task) {
+        console.log('Пользователь отменил ввод');
+        return;
+    }
+    
+    console.log('📝 Задача получена:', task);
+    
+    const button = document.getElementById('enhanceModules');
+    if (!button) {
+        console.error('❌ Кнопка enhanceModules не найдена');
+        addMessage('system', '❌ Ошибка: кнопка не найдена');
+        return;
+    }
+    
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = '⏳ Доработка...';
+    
+    addMessage('system', '🔧 Начало доработки модулей...');
+    
+    try {
+        // Определяем опции для запроса
+        const useOpenRouter = currentProvider === 'openrouter';
+        const model = useOpenRouter ? undefined : currentModel;
+        const openRouterModel = useOpenRouter ? currentOpenRouterModel : undefined;
+        
+        console.log('📤 Отправка запроса enhanceModules', { task, useOpenRouter, model, openRouterModel });
+        
+        const result = await window.api.enhanceModules(task, {
+            useOpenRouter,
+            model,
+            openRouterModel
+        });
+        
+        console.log('📥 Результат получен:', result);
+        
+        if (result && result.success) {
+            addMessage('system', '✅ Доработка модулей завершена!');
+            if (result.result) {
+                addMessage('ai', typeof result.result === 'string' ? result.result : JSON.stringify(result.result, null, 2));
+            }
+        } else {
+            const errorMsg = result?.error || 'Неизвестная ошибка';
+            console.error('❌ Ошибка доработки модулей:', errorMsg);
+            addMessage('system', `❌ Ошибка: ${errorMsg}`);
+        }
+    } catch (error) {
+        console.error('❌ Исключение при доработке модулей:', error);
+        addMessage('system', `❌ Ошибка: ${error.message}`);
+    } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+    }
 }
 
 /**

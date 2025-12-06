@@ -6,8 +6,12 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "rebuild": "electron-rebuild -f -w better-sqlite3"
+    "test": "node tests/auto-test-chat-functions.js",
+    "test:chat": "node tests/auto-test-chat-functions.js",
+    "test:full": "node tests/test-plan-full.js",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "backup": "node -e \"const BackupManager = require('./lib/backup-manager'); const bm = new BackupManager(); bm.createBackup('./src', 'working-version-' + new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)).then(b => console.log('✅ Backup created:', b.name)).catch(e => console.error('❌ Error:', e.message));\"",
+    "restore": "node restore-backup.js"
   },
   "keywords": [
     "electron",

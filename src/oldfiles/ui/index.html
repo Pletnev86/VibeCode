@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VibeCode IDE</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    #editor {
+      flex: 1;
+    }
+    #chat {
+      height: 300px;
+      border-top: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+    }
+    #chat-output {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+    #chat-input {
+      height: 50px;
+      border-top: 1px solid #ddd;
+      padding: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="editor"></div>
+  <div id="chat">
+    <div id="chat-output"></div>
+    <textarea id="chat-input" placeholder="Введите ваш запрос..."></textarea>
+  </div>
+
+  <script src="ui.js"></script>
+</body>
+</html>

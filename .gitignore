@@ -41,6 +41,9 @@ tmp/
 temp/
 *.tmp
 
+# Backups
+backups/
+
 # Sensitive data
 data/knowledge.db
 data/knowledge.db-journal

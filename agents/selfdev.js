@@ -17,6 +17,11 @@ const ProjectAnalyzer = require('../lib/project-analyzer');
 const ExecutionLayer = require('../lib/execution-layer');
 const FeedbackMechanism = require('../lib/feedback-mechanism');
 const DocumentWatcher = require('../lib/document-watcher');
+const BackupManager = require('../lib/backup-manager');
+const { getLogger } = require('../lib/logger');
+
+// Инициализация логгера для SelfDev Agent
+const logger = getLogger();
 
 class SelfDevAgent {
   constructor(configPath = './config.json') {
@@ -36,6 +41,9 @@ class SelfDevAgent {
     
     // Логи действий
     this.logs = [];
+    
+    // Менеджер резервных копий
+    this.backupManager = new BackupManager();
     
     // Execution Layer для безопасного выполнения
     this.executor = new ExecutionLayer({
@@ -57,6 +65,7 @@ class SelfDevAgent {
       this.visionPath,
       this.roadmapPath,
       (type, filePath) => {
+        logger.info(`Обнаружено изменение в ${type}, перезагружаю контекст`, { filePath });
         this.log(`📝 Обнаружено изменение в ${type}, перезагружаю контекст...`);
         this.reloadContext();
       }
@@ -71,7 +80,7 @@ class SelfDevAgent {
       const configData = fs.readFileSync(configPath, 'utf8');
       return JSON.parse(configData);
     } catch (error) {
-      console.error('Ошибка загрузки конфигурации:', error.message);
+      logger.error('Ошибка загрузки конфигурации', error);
       throw error;
     }
   }
@@ -142,7 +151,7 @@ class SelfDevAgent {
 
       return this.visionCache;
     } catch (error) {
-      console.error('Ошибка чтения Vision.md:', error.message);
+      logger.error('Ошибка чтения Vision.md', error);
       throw error;
     }
   }
@@ -170,7 +179,7 @@ class SelfDevAgent {
 
       return this.roadmapCache;
     } catch (error) {
-      console.error('Ошибка чтения Roadmap.md:', error.message);
+      logger.error('Ошибка чтения Roadmap.md', error);
       throw error;
     }
   }
@@ -501,6 +510,28 @@ src/имя_файла.js
       }
     }
     
+    // Поиск 2.5: Блоки с языком, где путь в комментарии на первой строке (// src/main.js или # src/main.js)
+    const commentPathPattern = /```(?:javascript|js|html|css|json|typescript|ts|python|py|java|cpp|c|h|txt|markdown|md)\s*\n\s*(?:\/\/|#)\s*([\w\/\\\.\-]+\.(?:js|ts|jsx|tsx|html|css|json|md|py|java|cpp|c|h|txt))\s*\n([\s\S]*?)```/g;
+    while ((match = commentPathPattern.exec(response)) !== null) {
+      const filePath = match[1].trim();
+      const codeBlock = match[2].trim();
+      
+      // Убираем комментарий с путем из начала кода
+      const cleanCode = codeBlock.replace(/^(?:\/\/|#)\s*[\w\/\\\.\-]+\.\w+\s*\n?/m, '').trim();
+      
+      let normalizedPath = this.normalizePath(filePath);
+      
+      if (normalizedPath && cleanCode.length > 10) {
+        if (!foundPaths.has(normalizedPath)) {
+          files.push({
+            path: normalizedPath,
+            content: cleanCode
+          });
+          foundPaths.add(normalizedPath);
+        }
+      }
+    }
+    
     // Поиск 3: Если не нашли файлы, ищем упоминания путей перед блоками
     if (files.length === 0) {
       const codeBlockPattern = /```[\w]*\s*\n([\s\S]*?)```/g;
@@ -626,33 +657,35 @@ src/имя_файла.js
   log(...args) {
     const timestamp = new Date().toISOString();
     const message = args.join(' ');
-    const logEntry = `[${timestamp}] ${message}`;
+    const logEntry = {
+      timestamp: timestamp,
+      message: message
+    };
     
-    console.log(logEntry);
+    // Используем централизованный логгер
+    logger.info(message, { agent: 'SelfDev' });
+    
+    // Сохраняем в локальный массив для обратной совместимости
     this.logs.push(logEntry);
-    
-    // Сохранение логов в файл
-    try {
-      const logPath = path.join(this.srcPath, '..', 'logs');
-      if (!fs.existsSync(logPath)) {
-        fs.mkdirSync(logPath, { recursive: true });
-      }
-      
-      const logFile = path.join(logPath, `selfdev-${new Date().toISOString().split('T')[0]}.log`);
-      fs.appendFileSync(logFile, logEntry + '\n', 'utf8');
-    } catch (error) {
-      console.warn('Не удалось сохранить лог:', error.message);
-    }
   }
 
   /**
    * Основной метод для генерации каркаса проекта (улучшенный pipeline)
    */
-  async generateProject(task = null) {
+  async generateProject(task = null, options = {}) {
     const startTime = Date.now();
+    let backupCreated = false;
     
     try {
       this.log('=== Начало генерации проекта ===');
+      
+      // Этап 0: Создание резервной копии перед изменениями
+      if (fs.existsSync(this.srcPath)) {
+        this.log('💾 Создание резервной копии перед изменениями...');
+        await this.backupManager.createBackup(this.srcPath, `pre-selfbuild-${Date.now()}`);
+        backupCreated = true;
+        this.log('✅ Резервная копия создана');
+      }
       
       // Этап 1: Чтение Vision и Roadmap
       this.log('📖 Этап 1: Чтение Vision и Roadmap...');
@@ -672,10 +705,13 @@ src/имя_файла.js
       
       // Этап 4: Отправка запроса к AI (с автоматическим переводом если нужно)
       this.log('🤖 Этап 4: Отправка запроса к AI Router...');
-      const response = await this.router.sendRequest(prompt, {
+      // Объединяем опции из параметров с опциями из options
+      const requestOptions = {
         temperature: 0.7,
-        max_tokens: 4000
-      });
+        max_tokens: 4000,
+        ...options // Передаем опции из UI (useOpenRouter, openRouterModel и т.д.)
+      };
+      const response = await this.router.sendRequest(prompt, requestOptions);
       
       this.log('✅ Ответ от AI получен, длина:', response.length);
       
@@ -729,6 +765,18 @@ src/имя_файла.js
       const executionTime = Date.now() - startTime;
       this.log('❌ Ошибка генерации проекта:', error.message);
       this.log('Stack:', error.stack);
+      
+      // Автоматический откат при ошибке
+      if (backupCreated) {
+        try {
+          this.log('🔄 Автоматический откат изменений из резервной копии...');
+          await this.backupManager.restoreBackup();
+          this.log('✅ Изменения откачены из резервной копии');
+        } catch (restoreError) {
+          this.log('⚠️ Ошибка отката изменений:', restoreError.message);
+          logger.error('Ошибка отката изменений', restoreError);
+        }
+      }
       
       // Регистрация ошибки в Feedback Mechanism
       this.feedback.recordError(task || 'Self-Build', error, {

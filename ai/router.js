@@ -11,6 +11,10 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const { getLogger } = require('../lib/logger');
+
+// Инициализация логгера для AI Router
+const logger = getLogger();
 
 class AIRouter {
   constructor(configPath = './config.json') {
@@ -30,7 +34,7 @@ class AIRouter {
       const configData = fs.readFileSync(configPath, 'utf8');
       return JSON.parse(configData);
     } catch (error) {
-      console.error('Ошибка загрузки конфигурации:', error.message);
+      logger.error('Ошибка загрузки конфигурации', error);
       throw error;
     }
   }
@@ -165,7 +169,7 @@ class AIRouter {
       // Проверяем наличие данных в ответе
       return response.status === 200 && response.data && response.data.data;
     } catch (error) {
-      console.warn('LM Studio недоступен:', error.message);
+      logger.warn('LM Studio недоступен', null, error);
       return false;
     }
   }
@@ -193,7 +197,7 @@ class AIRouter {
       console.log(`OpenRouter доступен: ${isAvailable}`);
       return isAvailable;
     } catch (error) {
-      console.error('OpenRouter недоступен:', error.message);
+      logger.error('OpenRouter недоступен', error);
       if (error.response) {
         console.error('Статус:', error.response.status);
         console.error('Ответ:', error.response.data);
@@ -266,7 +270,7 @@ class AIRouter {
 
       throw new Error('Неожиданный формат ответа от OpenRouter');
     } catch (error) {
-      console.error('OpenRouter: ошибка запроса');
+      logger.error('OpenRouter: ошибка запроса', error);
       if (error.response) {
         const status = error.response.status;
         const statusText = error.response.statusText;
@@ -274,7 +278,7 @@ class AIRouter {
         console.error(`OpenRouter: статус ${status}, ошибка: ${errorMessage}`);
         throw new Error(`OpenRouter API ошибка (${status}): ${errorMessage}`);
       }
-      console.error(`OpenRouter: ошибка подключения: ${error.message}`);
+      logger.error('OpenRouter: ошибка подключения', error);
       throw new Error(`Ошибка подключения к OpenRouter: ${error.message}`);
     }
   }
@@ -400,11 +404,18 @@ class AIRouter {
       
       if (isOpenRouterAvailable) {
         try {
-          // Для OpenRouter используем выбранную модель или модель из конфига
-          const openRouterModel = options.openRouterModel 
-            || this.providers.openRouter.selectedModel 
-            || 'gpt4';
-          return await this.queryOpenRouter(openRouterModel, prompt, options);
+          // Для OpenRouter используем модель из опций или маппим из конфига
+          let openRouterModelName = options.openRouterModel || this.providers.openRouter.selectedModel || 'gpt4';
+          
+          // Если передана строка модели напрямую (например "deepseek"), маппим её
+          if (this.providers.openRouter.models[openRouterModelName]) {
+            openRouterModelName = this.providers.openRouter.models[openRouterModelName];
+          } else if (!openRouterModelName.includes('/')) {
+            // Если это короткое имя без слэша, используем маппинг
+            openRouterModelName = this.providers.openRouter.models[openRouterModelName] || this.providers.openRouter.defaultModel;
+          }
+          
+          return await this.queryOpenRouter(openRouterModelName, prompt, options);
         } catch (error) {
           // Проверяем, не закончились ли токены
           const isTokenError = error.message && (

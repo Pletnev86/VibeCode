@@ -109,13 +109,13 @@ class InterAgentController {
   /**
    * Добавление задачи в очередь
    */
-  addTask(task, context = {}) {
+  addTask(task, options = {}) {
     const taskType = this.determineTaskType(task);
     const taskItem = {
       id: Date.now() + Math.random(),
       task: task,
       type: taskType,
-      context: context,
+      context: options, // Сохраняем опции в context
       status: 'pending',
       createdAt: new Date().toISOString()
     };
@@ -146,7 +146,8 @@ class InterAgentController {
           if (!this.agents.selfdev) {
             await this.init();
           }
-          result = await this.agents.selfdev.generateProject(taskItem.task);
+          // Передаем опции из context в generateProject
+          result = await this.agents.selfdev.generateProject(taskItem.task, taskItem.context);
           break;
         
         case 'refactor':
