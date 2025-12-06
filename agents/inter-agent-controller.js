@@ -9,15 +9,19 @@
  */
 
 const SelfDevAgent = require('./selfdev');
+const RefactorAgent = require('./refactor');
+const FixAgent = require('./fix');
+const ExplainAgent = require('./explain');
 
 class InterAgentController {
   constructor(configPath = './config.json') {
     this.configPath = configPath;
     this.agents = {
       selfdev: null,
+      refactor: null,
+      fix: null,
+      explain: null,
       // Будущие агенты (будут добавлены позже)
-      // refactor: null,
-      // fix: null,
       // patch: null,
       // autocomplete: null,
       // pcControl: null
@@ -33,6 +37,31 @@ class InterAgentController {
     try {
       // Инициализация SelfDev Agent
       this.agents.selfdev = new SelfDevAgent(this.configPath);
+      
+      // Инициализация Refactor Agent
+      try {
+        this.agents.refactor = new RefactorAgent(this.configPath);
+        console.log('✅ Refactor Agent инициализирован');
+      } catch (error) {
+        console.error('⚠️ Ошибка инициализации Refactor Agent:', error.message);
+      }
+      
+      // Инициализация Fix Agent
+      try {
+        this.agents.fix = new FixAgent(this.configPath);
+        console.log('✅ Fix Agent инициализирован');
+      } catch (error) {
+        console.error('⚠️ Ошибка инициализации Fix Agent:', error.message);
+      }
+      
+      // Инициализация Explain Agent
+      try {
+        this.agents.explain = new ExplainAgent(this.configPath);
+        console.log('✅ Explain Agent инициализирован');
+      } catch (error) {
+        console.error('⚠️ Ошибка инициализации Explain Agent:', error.message);
+      }
+      
       console.log('✅ InterAgent Controller инициализирован');
     } catch (error) {
       console.error('❌ Ошибка инициализации агентов:', error.message);
@@ -121,12 +150,42 @@ class InterAgentController {
           break;
         
         case 'refactor':
-          // TODO: Реализовать Refactor Agent
-          throw new Error('Refactor Agent еще не реализован');
+          if (!this.agents.refactor) {
+            this.agents.refactor = new RefactorAgent(this.configPath);
+          }
+          // Извлекаем путь к файлу из задачи или контекста
+          const refactorFilePath = taskItem.context.filePath || taskItem.task.match(/(?:файл|file)[:\s]+([\w\/\\\.\-]+)/i)?.[1];
+          if (!refactorFilePath) {
+            throw new Error('Не указан путь к файлу для рефакторинга');
+          }
+          result = await this.agents.refactor.refactor(refactorFilePath, taskItem.task);
+          break;
         
         case 'fix':
-          // TODO: Реализовать Fix Agent
-          throw new Error('Fix Agent еще не реализован');
+          if (!this.agents.fix) {
+            this.agents.fix = new FixAgent(this.configPath);
+          }
+          // Извлекаем путь к файлу и ошибку из задачи или контекста
+          const fixFilePath = taskItem.context.filePath || taskItem.task.match(/(?:файл|file)[:\s]+([\w\/\\\.\-]+)/i)?.[1];
+          const errorMessage = taskItem.context.errorMessage || taskItem.task;
+          if (!fixFilePath) {
+            throw new Error('Не указан путь к файлу для исправления');
+          }
+          result = await this.agents.fix.fix(fixFilePath, errorMessage, taskItem.context.errorStack);
+          break;
+        
+        case 'explain':
+          if (!this.agents.explain) {
+            this.agents.explain = new ExplainAgent(this.configPath);
+          }
+          // Извлекаем путь к файлу из задачи или контекста
+          const explainFilePath = taskItem.context.filePath || taskItem.task.match(/(?:файл|file)[:\s]+([\w\/\\\.\-]+)/i)?.[1];
+          const language = taskItem.context.language || 'ru';
+          if (!explainFilePath) {
+            throw new Error('Не указан путь к файлу для объяснения');
+          }
+          result = await this.agents.explain.explain(explainFilePath, language);
+          break;
         
         case 'patch':
           // TODO: Реализовать Patch Agent
@@ -235,6 +294,7 @@ class InterAgentController {
 }
 
 module.exports = InterAgentController;
+
 
 
 

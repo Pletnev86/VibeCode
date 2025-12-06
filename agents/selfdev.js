@@ -28,8 +28,8 @@ class SelfDevAgent {
     this.router = new AIRouter(configPath);
     
     // Пути к документации
-    this.visionPath = path.resolve(this.agentConfig.visionPath);
-    this.roadmapPath = path.resolve(this.agentConfig.roadmapPath);
+    this.visionPath = path.resolve(this.agentConfig.visionPath || './docs/Vision.md');
+    this.roadmapPath = path.resolve(this.agentConfig.roadmapPath || './docs/Roadmap.md');
     
     // Путь для сохранения файлов
     this.srcPath = path.resolve('./src');
@@ -228,6 +228,156 @@ class SelfDevAgent {
     } catch (error) {
       this.log('Ошибка анализа проекта:', error.message);
       throw error;
+    }
+  }
+
+  /**
+   * Автономная разработка по этапам Roadmap
+   * Читает Roadmap и выполняет задачи по этапам
+   */
+  async developAutonomously() {
+    try {
+      this.log('🚀 Начало автономной разработки по Roadmap...');
+      
+      const roadmap = this.readRoadmap();
+      
+      // Парсинг этапов из Roadmap
+      const stages = this.parseRoadmapStages(roadmap);
+      
+      this.log(`📋 Найдено этапов: ${stages.length}`);
+      
+      for (let i = 0; i < stages.length; i++) {
+        const stage = stages[i];
+        this.log(`\n📌 Этап ${i + 1}/${stages.length}: ${stage.name}`);
+        this.log(`📝 Описание: ${stage.description.substring(0, 100)}...`);
+        
+        // Генерация задач для этапа
+        const tasks = await this.generateTasksForStage(stage);
+        this.log(`✅ Сгенерировано задач: ${tasks.length}`);
+        
+        // Выполнение задач этапа
+        for (const task of tasks) {
+          try {
+            this.log(`\n🔄 Выполнение задачи: ${task.substring(0, 50)}...`);
+            const result = await this.generateProject(task);
+            this.log(`✅ Задача выполнена, создано файлов: ${result.files?.length || 0}`);
+            
+            // Небольшая задержка между задачами
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (error) {
+            this.log(`❌ Ошибка выполнения задачи: ${error.message}`);
+            // Продолжаем со следующей задачей
+          }
+        }
+        
+        this.log(`\n✅ Этап ${i + 1} завершен`);
+      }
+      
+      this.log('\n🎉 Автономная разработка завершена!');
+      return {
+        success: true,
+        stagesCompleted: stages.length,
+        logs: this.logs
+      };
+      
+    } catch (error) {
+      this.log(`❌ Ошибка автономной разработки: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Парсинг этапов из Roadmap
+   */
+  parseRoadmapStages(roadmap) {
+    const stages = [];
+    
+    // Поиск этапов по заголовкам (## 🚀 1. MVP, ## ⚡ 2. Версия v0.2, и т.д.)
+    const stagePattern = /##\s+[🚀⚡🧪🏆]+\s+(\d+)\.\s+(.+?)\n\n([\s\S]*?)(?=##\s+[🚀⚡🧪🏆]+\s+\d+\.|$)/g;
+    
+    let match;
+    while ((match = stagePattern.exec(roadmap)) !== null) {
+      const stageNumber = match[1];
+      const stageName = match[2].trim();
+      const stageContent = match[3].trim();
+      
+      // Извлечение описания (первый абзац после заголовка)
+      const descriptionMatch = stageContent.match(/###\s+🎯\s+Цель\s*\n\n(.+?)(?=\n\n|###)/s);
+      const description = descriptionMatch ? descriptionMatch[1].trim() : stageContent.substring(0, 200);
+      
+      // Извлечение шагов (### 📌 Шаги MVP, ### 🔥 Новое в версии, и т.д.)
+      const stepsMatch = stageContent.match(/###\s+[📌🔥✨🏆]+\s+(.+?)\s*\n\n([\s\S]*?)(?=###|$)/s);
+      const steps = stepsMatch ? stepsMatch[2].trim() : '';
+      
+      stages.push({
+        number: parseInt(stageNumber),
+        name: stageName,
+        description: description,
+        content: stageContent,
+        steps: steps
+      });
+    }
+    
+    return stages;
+  }
+
+  /**
+   * Генерация задач для этапа
+   */
+  async generateTasksForStage(stage) {
+    const vision = this.readVision();
+    
+    const prompt = `Ты - AI агент для планирования разработки.
+
+## Vision проекта:
+${vision.substring(0, 1000)}
+
+## Текущий этап:
+${stage.name}
+
+## Описание этапа:
+${stage.description}
+
+## Шаги этапа:
+${stage.steps.substring(0, 2000)}
+
+## Задача:
+Создай список конкретных задач для выполнения этого этапа.
+Каждая задача должна быть конкретной и выполнимой.
+Верни список задач в формате:
+1. Задача 1
+2. Задача 2
+3. Задача 3
+
+Начни генерацию задач:`;
+
+    try {
+      const result = await this.router.routeRequest(prompt, {
+        taskType: 'reasoning',
+        useOpenRouter: false,
+        model: 'deepseek'
+      });
+      
+      if (!result || !result.response) {
+        return [];
+      }
+      
+      // Парсинг задач из ответа
+      const tasks = [];
+      const lines = result.response.split('\n');
+      
+      for (const line of lines) {
+        const taskMatch = line.match(/^\d+\.\s+(.+)$/);
+        if (taskMatch) {
+          tasks.push(taskMatch[1].trim());
+        }
+      }
+      
+      return tasks.length > 0 ? tasks : [stage.name];
+    } catch (error) {
+      this.log(`⚠️ Ошибка генерации задач для этапа: ${error.message}`);
+      // Возвращаем базовую задачу
+      return [stage.name];
     }
   }
 
