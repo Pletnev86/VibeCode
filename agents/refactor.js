@@ -75,18 +75,21 @@ class RefactorAgent {
       
       // Отправка запроса к AI
       this.log('🤖 Отправка запроса к AI Router...');
-      const result = await this.router.routeRequest(prompt, {
+      const result = await this.router.sendRequest(prompt, {
         taskType: 'refactor',
         useOpenRouter: false,
         model: 'deepseek'
       });
       
-      if (!result || !result.response) {
+      // Преобразуем результат в нужный формат
+      const response = typeof result === 'string' ? result : (result.response || result);
+      
+      if (!response) {
         throw new Error('AI не вернул ответ');
       }
       
       // Парсинг улучшенного кода из ответа
-      const refactoredCode = this.parseRefactoredCode(result.response, originalCode);
+      const refactoredCode = this.parseRefactoredCode(response, originalCode);
       
       if (!refactoredCode || refactoredCode.length < 10) {
         throw new Error('Не удалось извлечь улучшенный код из ответа AI');

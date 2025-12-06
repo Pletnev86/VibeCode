@@ -85,17 +85,20 @@ class ExplainAgent {
       
       // Отправка запроса к AI
       this.log('🤖 Отправка запроса к AI Router...');
-      const result = await this.router.routeRequest(prompt, {
+      const result = await this.router.sendRequest(prompt, {
         taskType: 'explain',
         useOpenRouter: false,
         model: 'deepseek'
       });
       
-      if (!result || !result.response) {
+      // Преобразуем результат в нужный формат
+      const response = typeof result === 'string' ? result : (result.response || result);
+      
+      if (!response) {
         throw new Error('AI не вернул ответ');
       }
       
-      const explanation = result.response.trim();
+      const explanation = response.trim();
       this.log(`✅ Объяснение получено (${explanation.length} символов)`);
       
       return {

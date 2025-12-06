@@ -78,18 +78,21 @@ class FixAgent {
       
       // Отправка запроса к AI
       this.log('🤖 Отправка запроса к AI Router...');
-      const result = await this.router.routeRequest(prompt, {
+      const result = await this.router.sendRequest(prompt, {
         taskType: 'fix',
         useOpenRouter: false,
         model: 'deepseek'
       });
       
-      if (!result || !result.response) {
+      // Преобразуем результат в нужный формат
+      const response = typeof result === 'string' ? result : (result.response || result);
+      
+      if (!response) {
         throw new Error('AI не вернул ответ');
       }
       
       // Парсинг исправленного кода из ответа
-      const fixedCode = this.parseFixedCode(result.response, code);
+      const fixedCode = this.parseFixedCode(response, code);
       
       if (!fixedCode || fixedCode.length < 10) {
         throw new Error('Не удалось извлечь исправленный код из ответа AI');

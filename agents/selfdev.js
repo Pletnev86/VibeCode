@@ -352,11 +352,14 @@ ${stage.steps.substring(0, 2000)}
 Начни генерацию задач:`;
 
     try {
-      const result = await this.router.routeRequest(prompt, {
+      const result = await this.router.sendRequest(prompt, {
         taskType: 'reasoning',
         useOpenRouter: false,
         model: 'deepseek'
       });
+      
+      // Преобразуем результат в нужный формат
+      const response = typeof result === 'string' ? result : (result.response || result);
       
       if (!result || !result.response) {
         return [];

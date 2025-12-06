@@ -74,7 +74,7 @@ function createWindow() {
     },
   });
 
-  // Загрузка HTML страницы
+  // Загрузка HTML страницы из той же директории
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
   // Открытие DevTools в режиме разработки (опционально)
@@ -100,7 +100,7 @@ ipcMain.handle('generate-project', async (event, task = null) => {
     
     return {
       success: true,
-      files: result.files || [],
+      files: result.savedFiles || [],
       logs: selfDevAgent.logs || []
     };
   } catch (error) {
@@ -272,7 +272,7 @@ ipcMain.handle('chat', async (event, messages, model) => {
     const router = new AIRouter('./config.json');
     
     const lastMessage = messages[messages.length - 1];
-    const result = await router.routeRequest(lastMessage.content, {
+    const result = await router.sendRequest(lastMessage.content, {
       useOpenRouter: model === 'openrouter' || model === 'gpt4',
       model: model,
       knowledgeBaseInstance: knowledgeBase
