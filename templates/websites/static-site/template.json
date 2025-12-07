@@ -1,0 +1,19 @@
+{
+  "name": "static-site",
+  "type": "website",
+  "description": "Простой статический веб-сайт",
+  "category": "static",
+  "technologies": ["html", "css", "javascript"],
+  "setup": {
+    "commands": [
+      "Откройте index.html в браузере"
+    ],
+    "requirements": []
+  },
+  "files": [
+    "index.html",
+    "style.css",
+    "script.js"
+  ]
+}
+

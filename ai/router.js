@@ -219,7 +219,12 @@ class AIRouter {
     }
 
     const modelName = this.providers.openRouter.models[model] || model || this.providers.openRouter.defaultModel;
-    console.log(`OpenRouter: отправка запроса к модели ${modelName}`);
+    console.log(`📤 OpenRouter: отправка запроса к модели: ${modelName}`);
+    logger.info('OpenRouter: отправка запроса', { 
+      modelKey: model, 
+      modelName: modelName,
+      promptLength: typeof prompt === 'string' ? prompt.length : 0
+    });
 
     try {
       const response = await axios.post(
@@ -247,6 +252,10 @@ class AIRouter {
       );
 
       console.log('OpenRouter: ответ получен, статус:', response.status);
+      
+      // Получаем информацию о модели из ответа (если есть)
+      const responseModel = response.data?.model || modelName;
+      console.log(`✅ OpenRouter: ответ получен от модели: ${responseModel}`);
 
       if (response.data && response.data.choices && response.data.choices.length > 0) {
         const content = response.data.choices[0].message.content;
@@ -255,8 +264,8 @@ class AIRouter {
         const promptTokens = usage.prompt_tokens || 0;
         const completionTokens = usage.completion_tokens || 0;
         
-        console.log(`OpenRouter: получен ответ длиной ${content.length} символов`);
-        console.log(`OpenRouter: использовано токенов - всего: ${tokensUsed}, промпт: ${promptTokens}, ответ: ${completionTokens}`);
+        console.log(`📊 OpenRouter: получен ответ длиной ${content.length} символов от модели ${responseModel}`);
+        console.log(`🎫 OpenRouter: использовано токенов - всего: ${tokensUsed}, промпт: ${promptTokens}, ответ: ${completionTokens}`);
         
         // Сохраняем информацию об использовании токенов для логирования
         this.lastTokenUsage = {
@@ -271,15 +280,53 @@ class AIRouter {
       throw new Error('Неожиданный формат ответа от OpenRouter');
     } catch (error) {
       logger.error('OpenRouter: ошибка запроса', error);
+      
+      // Формируем детальное сообщение об ошибке с предложением переключиться
+      let errorMessage = '';
+      let suggestion = '';
+      
       if (error.response) {
         const status = error.response.status;
         const statusText = error.response.statusText;
-        const errorMessage = error.response.data?.error?.message || statusText;
-        console.error(`OpenRouter: статус ${status}, ошибка: ${errorMessage}`);
-        throw new Error(`OpenRouter API ошибка (${status}): ${errorMessage}`);
+        const apiError = error.response.data?.error?.message || statusText;
+        
+        // Определяем причину ошибки
+        if (status === 401 || status === 403) {
+          errorMessage = `Ошибка авторизации OpenRouter (${status}): ${apiError}`;
+          suggestion = 'Проверьте API ключ в config.json. Или переключитесь на LM Studio (локальный).';
+        } else if (status === 429) {
+          errorMessage = `Превышен лимит запросов OpenRouter (${status}): ${apiError}`;
+          suggestion = 'Подождите немного или переключитесь на другую модель/провайдер (например, LM Studio).';
+        } else if (status === 402) {
+          errorMessage = `Недостаточно средств на счету OpenRouter (${status}): ${apiError}`;
+          suggestion = 'Пополните баланс OpenRouter или переключитесь на бесплатную модель (deepseek-free) или LM Studio.';
+        } else if (status >= 500) {
+          errorMessage = `Ошибка сервера OpenRouter (${status}): ${apiError}`;
+          suggestion = 'Сервер OpenRouter временно недоступен. Переключитесь на LM Studio или попробуйте позже.';
+        } else {
+          errorMessage = `OpenRouter API ошибка (${status}): ${apiError}`;
+          suggestion = 'Попробуйте переключиться на другую модель или провайдер (LM Studio).';
+        }
+        
+        console.error(`❌ ${errorMessage}`);
+        console.log(`💡 Рекомендация: ${suggestion}`);
+      } else if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+        errorMessage = `Не удалось подключиться к OpenRouter: ${error.message}`;
+        suggestion = 'Проверьте интернет-соединение или переключитесь на LM Studio (локальный).';
+        console.error(`❌ ${errorMessage}`);
+        console.log(`💡 Рекомендация: ${suggestion}`);
+      } else {
+        errorMessage = `Ошибка подключения к OpenRouter: ${error.message}`;
+        suggestion = 'Попробуйте переключиться на другую модель или провайдер.';
+        logger.error('OpenRouter: ошибка подключения', error);
       }
-      logger.error('OpenRouter: ошибка подключения', error);
-      throw new Error(`Ошибка подключения к OpenRouter: ${error.message}`);
+      
+      // Создаем объект ошибки с дополнительной информацией
+      const enhancedError = new Error(errorMessage);
+      enhancedError.suggestion = suggestion;
+      enhancedError.provider = 'openrouter';
+      enhancedError.model = modelName;
+      throw enhancedError;
     }
   }
 
@@ -295,6 +342,13 @@ class AIRouter {
     if (!modelName) {
       throw new Error(`Модель ${model} не найдена в конфигурации`);
     }
+
+    console.log(`📤 LM Studio: отправка запроса к модели: ${modelName}`);
+    logger.info('LM Studio: отправка запроса', { 
+      modelKey: model, 
+      modelName: modelName,
+      promptLength: typeof prompt === 'string' ? prompt.length : 0
+    });
 
     const startTime = Date.now();
     
@@ -329,18 +383,47 @@ class AIRouter {
         const requestTime = Date.now() - startTime;
         this.lastRequestTime = requestTime;
         
+        // Получаем информацию о модели из ответа (если есть)
+        const responseModel = response.data?.model || modelName;
+        console.log(`✅ LM Studio: ответ получен от модели: ${responseModel}`);
+        console.log(`📊 LM Studio: получен ответ длиной ${cleanedContent.length} символов, время выполнения: ${(requestTime / 1000).toFixed(2)} сек`);
+        
         return cleanedContent;
       }
 
       throw new Error('Неожиданный формат ответа от LM Studio');
     } catch (error) {
-      // Детальная обработка ошибок
+      // Детальная обработка ошибок с предложением переключиться
+      let errorMessage = '';
+      let suggestion = '';
+      
       if (error.code === 'ECONNREFUSED') {
-        throw new Error('LM Studio недоступен. Убедитесь, что LM Studio запущен и слушает на порту 1234');
+        errorMessage = 'LM Studio недоступен. Убедитесь, что LM Studio запущен и слушает на порту 1234';
+        suggestion = 'Запустите LM Studio и загрузите модель, или переключитесь на OpenRouter (API).';
+        console.error(`❌ ${errorMessage}`);
+        console.log(`💡 Рекомендация: ${suggestion}`);
+      } else if (error.code === 'ETIMEDOUT') {
+        errorMessage = 'Превышено время ожидания ответа от LM Studio';
+        suggestion = 'Модель отвечает слишком долго. Попробуйте другую модель или переключитесь на OpenRouter.';
+        console.error(`❌ ${errorMessage}`);
+        console.log(`💡 Рекомендация: ${suggestion}`);
+      } else if (error.message && error.message.includes('не найдена')) {
+        errorMessage = error.message;
+        suggestion = 'Проверьте конфигурацию модели в config.json или переключитесь на другую модель.';
+        console.error(`❌ ${errorMessage}`);
+        console.log(`💡 Рекомендация: ${suggestion}`);
+      } else {
+        errorMessage = `Ошибка LM Studio: ${error.message}`;
+        suggestion = 'Попробуйте перезапустить LM Studio или переключитесь на OpenRouter.';
+        logger.error('LM Studio: ошибка запроса', error);
       }
-      if (error.code === 'ETIMEDOUT') {
-        throw new Error('Превышено время ожидания ответа от LM Studio');
-      }
+      
+      // Создаем объект ошибки с дополнительной информацией
+      const enhancedError = new Error(errorMessage);
+      enhancedError.suggestion = suggestion;
+      enhancedError.provider = 'lmstudio';
+      enhancedError.model = modelName;
+      throw enhancedError;
       if (error.response) {
         const status = error.response.status;
         const statusText = error.response.statusText;
@@ -407,12 +490,19 @@ class AIRouter {
           // Для OpenRouter используем модель из опций или маппим из конфига
           let openRouterModelName = options.openRouterModel || this.providers.openRouter.selectedModel || 'gpt4';
           
+          console.log(`🔍 OpenRouter: исходное имя модели из опций: ${openRouterModelName}`);
+          console.log(`🔍 OpenRouter: доступные модели в конфиге:`, Object.keys(this.providers.openRouter.models || {}));
+          
           // Если передана строка модели напрямую (например "deepseek"), маппим её
           if (this.providers.openRouter.models[openRouterModelName]) {
             openRouterModelName = this.providers.openRouter.models[openRouterModelName];
+            console.log(`✅ OpenRouter: модель найдена в конфиге, маппинг: ${openRouterModelName}`);
           } else if (!openRouterModelName.includes('/')) {
             // Если это короткое имя без слэша, используем маппинг
             openRouterModelName = this.providers.openRouter.models[openRouterModelName] || this.providers.openRouter.defaultModel;
+            console.log(`⚠️ OpenRouter: модель не найдена в конфиге, используем: ${openRouterModelName}`);
+          } else {
+            console.log(`✅ OpenRouter: используется полное имя модели: ${openRouterModelName}`);
           }
           
           return await this.queryOpenRouter(openRouterModelName, prompt, options);

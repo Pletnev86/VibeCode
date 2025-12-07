@@ -28,9 +28,41 @@ function initializeUI() {
     // Кнопка отправки сообщения
     document.getElementById('send').addEventListener('click', sendMessage);
     
+    // Горячие клавиши
+    document.addEventListener('keydown', (e) => {
+        // Ctrl+Enter или Enter - отправить сообщение
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            sendMessage();
+        } else if (e.key === 'Enter' && !e.shiftKey && document.activeElement === document.getElementById('input')) {
+            e.preventDefault();
+            sendMessage();
+        }
+        
+        // Ctrl+B - Self-Build
+        if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+            e.preventDefault();
+            if (!document.getElementById('selfBuild').disabled) {
+                handleSelfBuild();
+            }
+        }
+        
+        // Ctrl+K - очистить чат
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            document.getElementById('output').innerHTML = '';
+            updateStatus('🗑️ Чат очищен');
+        }
+        
+        // Esc - отменить/очистить фокус
+        if (e.key === 'Escape') {
+            document.getElementById('input').blur();
+        }
+    });
+    
     // Enter для отправки (Shift+Enter для новой строки)
     document.getElementById('input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
             e.preventDefault();
             sendMessage();
         }
@@ -62,12 +94,27 @@ function initializeUI() {
     document.getElementById('lmModel').addEventListener('change', (e) => {
         currentModel = e.target.value;
         updateStatus(`🔄 Модель LM Studio: ${currentModel}`);
+        updateModelStatus('lmModelStatus', currentModel, 'lmstudio');
     });
     
     // Выбор модели OpenRouter
     document.getElementById('openRouterModel').addEventListener('change', (e) => {
         currentOpenRouterModel = e.target.value;
         updateStatus(`🔄 Модель OpenRouter: ${currentOpenRouterModel}`);
+        updateModelStatus('openRouterModelStatus', currentOpenRouterModel, 'openrouter');
+    });
+    
+    // Обновление статуса модели при переключении провайдера
+    document.querySelectorAll('input[name="provider"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            if (e.target.value === 'lmstudio') {
+                updateModelStatus('lmModelStatus', currentModel, 'lmstudio');
+                updateModelStatus('openRouterModelStatus', '', '');
+            } else {
+                updateModelStatus('openRouterModelStatus', currentOpenRouterModel, 'openrouter');
+                updateModelStatus('lmModelStatus', '', '');
+            }
+        });
     });
     
     // Периодическое обновление логов
@@ -154,11 +201,62 @@ async function sendMessage() {
             
             addMessage('ai', responseText);
         } else {
-            addMessage('ai', `❌ Ошибка: ${result.error || 'Неизвестная ошибка'}`);
+            // Показываем детальную информацию об ошибке с предложением переключиться
+            let errorMsg = `❌ Ошибка: ${result.error || 'Неизвестная ошибка'}`;
+            
+            if (result.suggestion) {
+                errorMsg += `\n\n💡 Рекомендация: ${result.suggestion}`;
+            }
+            
+            if (result.model) {
+                errorMsg += `\n📊 Использовалась модель: ${result.model}`;
+            }
+            
+            if (result.details && result.details.status) {
+                errorMsg += `\n🔢 HTTP статус: ${result.details.status}`;
+            }
+            
+            addMessage('ai', errorMsg);
+            
+            // Если есть предложение, показываем кнопку для быстрого переключения
+            if (result.suggestion && result.provider) {
+                const switchMsg = document.createElement('div');
+                switchMsg.className = 'error-suggestion';
+                switchMsg.style.cssText = 'margin-top: 10px; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;';
+                
+                const switchText = result.provider === 'openrouter' 
+                    ? 'Переключиться на LM Studio (локальный)'
+                    : 'Переключиться на OpenRouter (API)';
+                
+                switchMsg.innerHTML = `
+                    <div style="margin-bottom: 8px;">${result.suggestion}</div>
+                    <button id="switchProviderBtn" style="padding: 6px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        ${switchText}
+                    </button>
+                `;
+                
+                const output = document.getElementById('output');
+                const lastMessage = output.lastElementChild;
+                if (lastMessage) {
+                    lastMessage.appendChild(switchMsg);
+                    
+                    // Обработчик кнопки переключения
+                    document.getElementById('switchProviderBtn').addEventListener('click', () => {
+                        if (result.provider === 'openrouter') {
+                            document.querySelector('input[name="provider"][value="lmstudio"]').click();
+                        } else {
+                            document.querySelector('input[name="provider"][value="openrouter"]').click();
+                        }
+                        updateStatus(`🔄 Переключено на ${result.provider === 'openrouter' ? 'LM Studio' : 'OpenRouter'}`);
+                    });
+                }
+            }
         }
     } catch (error) {
         removeMessage(loadingId);
-        addMessage('ai', `❌ Ошибка: ${error.message}`);
+        let errorMsg = `❌ Ошибка: ${error.message}`;
+        errorMsg += '\n\n💡 Рекомендация: Попробуйте переключиться на другой провайдер или модель.';
+        addMessage('ai', errorMsg);
         console.error('❌ Ошибка в результате:', error);
     }
 }
@@ -175,7 +273,16 @@ async function handleSelfBuild() {
     addMessage('system', '🚀 Начало генерации проекта через Self-Build...');
     
     try {
-        const result = await window.api.generateProject();
+        // Определяем опции для запроса (используем выбранную модель из UI)
+        const useOpenRouter = currentProvider === 'openrouter';
+        const model = useOpenRouter ? undefined : currentModel;
+        const openRouterModel = useOpenRouter ? currentOpenRouterModel : undefined;
+        
+        const result = await window.api.generateProject(null, {
+            useOpenRouter: useOpenRouter,
+            model: model,
+            openRouterModel: openRouterModel
+        });
         
         if (result.success) {
             addMessage('system', '✅ Проект успешно сгенерирован!');
@@ -232,37 +339,10 @@ async function handleAnalyzeProject() {
  * Обработка доработки модулей
  */
 async function handleEnhanceModules() {
-    console.log('🔧 handleEnhanceModules вызван');
-    
-    // Проверяем наличие window.api
-    if (!window.api) {
-        console.error('❌ window.api не определен');
-        addMessage('system', '❌ Ошибка: window.api не определен. Перезагрузите приложение.');
-        return;
-    }
-    
-    // Проверяем наличие метода enhanceModules
-    if (!window.api.enhanceModules) {
-        console.error('❌ window.api.enhanceModules не определен');
-        addMessage('system', '❌ Ошибка: window.api.enhanceModules не определен. Проверьте preload.js.');
-        return;
-    }
-    
     const task = prompt('Введите задачу для доработки модулей:');
-    if (!task) {
-        console.log('Пользователь отменил ввод');
-        return;
-    }
-    
-    console.log('📝 Задача получена:', task);
+    if (!task) return;
     
     const button = document.getElementById('enhanceModules');
-    if (!button) {
-        console.error('❌ Кнопка enhanceModules не найдена');
-        addMessage('system', '❌ Ошибка: кнопка не найдена');
-        return;
-    }
-    
     button.disabled = true;
     const originalText = button.textContent;
     button.textContent = '⏳ Доработка...';
@@ -275,28 +355,21 @@ async function handleEnhanceModules() {
         const model = useOpenRouter ? undefined : currentModel;
         const openRouterModel = useOpenRouter ? currentOpenRouterModel : undefined;
         
-        console.log('📤 Отправка запроса enhanceModules', { task, useOpenRouter, model, openRouterModel });
-        
         const result = await window.api.enhanceModules(task, {
             useOpenRouter,
             model,
             openRouterModel
         });
         
-        console.log('📥 Результат получен:', result);
-        
-        if (result && result.success) {
+        if (result.success) {
             addMessage('system', '✅ Доработка модулей завершена!');
             if (result.result) {
                 addMessage('ai', typeof result.result === 'string' ? result.result : JSON.stringify(result.result, null, 2));
             }
         } else {
-            const errorMsg = result?.error || 'Неизвестная ошибка';
-            console.error('❌ Ошибка доработки модулей:', errorMsg);
-            addMessage('system', `❌ Ошибка: ${errorMsg}`);
+            addMessage('system', `❌ Ошибка: ${result.error || 'Неизвестная ошибка'}`);
         }
     } catch (error) {
-        console.error('❌ Исключение при доработке модулей:', error);
         addMessage('system', `❌ Ошибка: ${error.message}`);
     } finally {
         button.disabled = false;
@@ -370,12 +443,28 @@ async function loadLogs() {
 /**
  * Обновление статуса
  */
-function updateStatus(message) {
+function updateStatus(message, type = 'success') {
     const statusDiv = document.getElementById('status');
     if (statusDiv) {
         statusDiv.textContent = message;
+        statusDiv.className = `status ${type}`;
         setTimeout(() => {
             statusDiv.textContent = '✅ Приложение готово к работе';
-        }, 3000);
+            statusDiv.className = 'status success';
+        }, 4000);
+    }
+}
+
+function updateModelStatus(elementId, model, provider) {
+    const statusDiv = document.getElementById(elementId);
+    if (statusDiv) {
+        const currentProvider = document.querySelector('input[name="provider"]:checked').value;
+        if (currentProvider === provider && model) {
+            statusDiv.textContent = `✓ Активна: ${model}`;
+            statusDiv.className = 'model-status active';
+        } else {
+            statusDiv.textContent = 'Готово';
+            statusDiv.className = 'model-status';
+        }
     }
 }

@@ -175,7 +175,16 @@ async function handleSelfBuild() {
     addMessage('system', '🚀 Начало генерации проекта через Self-Build...');
     
     try {
-        const result = await window.api.generateProject();
+        // Определяем опции для запроса (используем выбранную модель из UI)
+        const useOpenRouter = currentProvider === 'openrouter';
+        const model = useOpenRouter ? undefined : currentModel;
+        const openRouterModel = useOpenRouter ? currentOpenRouterModel : undefined;
+        
+        const result = await window.api.generateProject(null, {
+            useOpenRouter: useOpenRouter,
+            model: model,
+            openRouterModel: openRouterModel
+        });
         
         if (result.success) {
             addMessage('system', '✅ Проект успешно сгенерирован!');

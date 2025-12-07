@@ -1,0 +1,22 @@
+{
+  "name": "electron-app",
+  "type": "app",
+  "description": "Базовый шаблон Electron приложения",
+  "category": "desktop",
+  "technologies": ["electron", "javascript", "html", "css"],
+  "setup": {
+    "commands": [
+      "npm install",
+      "npm start"
+    ],
+    "requirements": ["node.js >= 16"]
+  },
+  "files": [
+    "package.json",
+    "main.js",
+    "index.html",
+    "preload.js",
+    "style.css"
+  ]
+}
+

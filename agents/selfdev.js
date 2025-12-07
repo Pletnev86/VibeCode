@@ -18,6 +18,8 @@ const ExecutionLayer = require('../lib/execution-layer');
 const FeedbackMechanism = require('../lib/feedback-mechanism');
 const DocumentWatcher = require('../lib/document-watcher');
 const BackupManager = require('../lib/backup-manager');
+const TemplateSelector = require('../lib/template-selector');
+const RulesManager = require('../lib/rules-manager');
 const { getLogger } = require('../lib/logger');
 
 // Инициализация логгера для SelfDev Agent
@@ -44,6 +46,15 @@ class SelfDevAgent {
     
     // Менеджер резервных копий
     this.backupManager = new BackupManager();
+    
+    // Селектор шаблонов
+    this.templateSelector = new TemplateSelector();
+    
+    // Менеджер правил проекта
+    this.rulesManager = new RulesManager(null, null);
+    this.rulesManager.loadAllRules().catch(error => {
+      logger.warn('Ошибка загрузки правил', null, error);
+    });
     
     // Execution Layer для безопасного выполнения
     this.executor = new ExecutionLayer({
@@ -396,7 +407,7 @@ ${stage.steps.substring(0, 2000)}
   /**
    * Формирование промпта для генерации файлов на основе Vision и Roadmap
    */
-  async generatePrompt(task = null) {
+  async generatePrompt(task = null, template = null, templateInstructions = null) {
     const vision = this.readVision();
     const roadmap = this.readRoadmap();
     
@@ -410,6 +421,36 @@ ${roadmap}
 
 `;
 
+    // Добавляем правила проекта
+    const rulesText = this.rulesManager.getRulesForPrompt();
+    if (rulesText) {
+      prompt += rulesText;
+    }
+
+    // Добавляем информацию о шаблоне если выбран
+    if (template) {
+      prompt += `## Шаблон проекта:
+Используй шаблон: ${template.name} (${template.type})
+Описание: ${template.description}
+Технологии: ${template.technologies?.join(', ') || 'не указаны'}
+
+`;
+      
+      if (templateInstructions) {
+        prompt += `## Инструкции по запуску из шаблона:
+${templateInstructions}
+
+`;
+      }
+      
+      if (template.setup && template.setup.commands) {
+        prompt += `## Команды для запуска:
+${template.setup.commands.map(cmd => `- ${cmd}`).join('\n')}
+
+`;
+      }
+    }
+
     if (task) {
       prompt += `## Текущая задача:
 ${task}
@@ -418,6 +459,7 @@ ${task}
     } else {
       prompt += `## Задача:
 Создай минимальный рабочий каркас проекта на основе Vision и Roadmap.
+${template ? `Используй шаблон "${template.name}" как основу.` : ''}
 Сгенерируй основные файлы:
 - src/main.js - точка входа Electron
 - src/preload.js - IPC мост
@@ -693,15 +735,27 @@ src/имя_файла.js
       const roadmap = this.readRoadmap();
       this.log('✅ Vision и Roadmap прочитаны');
       
-      // Этап 2: Классификация задачи
+      // Этап 2: Классификация задачи и выбор шаблона
       this.log('🔍 Этап 2: Классификация задачи...');
       const taskType = task ? this.router.classifyTask(task) : 'general';
-      const selectedModel = this.router.selectModel(taskType);
+      // Используем модель из options если передана, иначе выбираем автоматически
+      const selectedModel = options.openRouterModel || options.model || this.router.selectModel(taskType);
       this.log(`✅ Тип задачи: ${taskType}, Модель: ${selectedModel}`);
+      
+      // Выбор шаблона на основе задачи
+      const selectedTemplate = this.templateSelector.selectTemplate(task);
+      let templateInstructions = null;
+      if (selectedTemplate) {
+        this.log(`📦 Выбран шаблон: ${selectedTemplate.name} (${selectedTemplate.type})`);
+        templateInstructions = this.templateSelector.getInstructions(selectedTemplate);
+        if (templateInstructions) {
+          this.log(`📖 Инструкции по запуску загружены из шаблона`);
+        }
+      }
       
       // Этап 3: Формирование промпта
       this.log('📝 Этап 3: Формирование промпта для AI...');
-      const prompt = await this.generatePrompt(task);
+      const prompt = await this.generatePrompt(task, selectedTemplate, templateInstructions);
       
       // Этап 4: Отправка запроса к AI (с автоматическим переводом если нужно)
       this.log('🤖 Этап 4: Отправка запроса к AI Router...');

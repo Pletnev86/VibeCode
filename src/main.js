@@ -41,6 +41,7 @@ let selfDevAgent = null;
 let interAgentController = null;
 let knowledgeBase = null;
 let chatContextManager = null;
+let documentationManager = null;
 
 /**
  * Инициализация базы знаний (опционально)
@@ -51,6 +52,21 @@ function initKnowledgeBase() {
     knowledgeBase = new KnowledgeBase();
     if (knowledgeBase.available) {
       logger.info('База знаний инициализирована');
+      
+      // Инициализация менеджера документации
+      try {
+        const DocumentationManager = require('../lib/documentation-manager');
+        documentationManager = new DocumentationManager(knowledgeBase);
+        
+        // Автоматическая индексация документации при старте
+        documentationManager.indexAllDocumentation().then(result => {
+          logger.info(`Документация проиндексирована: ${result.processed} файлов`);
+        }).catch(error => {
+          logger.warn('Ошибка индексации документации', null, error);
+        });
+      } catch (error) {
+        logger.warn('DocumentationManager недоступен', null, error);
+      }
     } else {
       logger.warn('База знаний недоступна, работаем без неё');
     }
@@ -161,15 +177,16 @@ function createWindow() {
  */
 
 // Обработчик генерации проекта (Self-Build)
-ipcMain.handle('generate-project', async (event, task = null) => {
+ipcMain.handle('generate-project', async (event, task = null, options = {}) => {
   try {
-    logger.info('Начало генерации проекта через Self-Build', { task });
+    logger.info('Начало генерации проекта через Self-Build', { task, options });
     
     if (!selfDevAgent) {
       await initAgents();
     }
     
-    const result = await selfDevAgent.generateProject(task);
+    // Передаем опции модели в generateProject
+    const result = await selfDevAgent.generateProject(task, options);
     logger.info('Проект успешно сгенерирован', { 
       filesCount: result.savedFiles?.length || 0,
       files: result.savedFiles 
@@ -452,9 +469,34 @@ ipcMain.handle('send-chat-message', async (event, message, options = {}) => {
       options 
     });
     
+    // Формируем детальное сообщение об ошибке с предложением переключиться
+    let errorMessage = error.message || 'Неизвестная ошибка';
+    let suggestion = '';
+    
+    if (error.suggestion) {
+      suggestion = error.suggestion;
+    } else if (error.provider === 'openrouter') {
+      suggestion = 'Попробуйте переключиться на LM Studio (локальный) или другую модель OpenRouter.';
+    } else if (error.provider === 'lmstudio') {
+      suggestion = 'Попробуйте переключиться на OpenRouter (API) или проверьте настройки LM Studio.';
+    } else {
+      suggestion = 'Попробуйте переключиться на другой провайдер или модель.';
+    }
+    
+    // Добавляем информацию о модели для отладки
+    const modelInfo = useOpenRouter ? `OpenRouter: ${openRouterModel || 'не указана'}` : `LM Studio: ${model || 'не указана'}`;
+    
     return {
       success: false,
-      error: error.message
+      error: errorMessage,
+      suggestion: suggestion,
+      provider: error.provider || (useOpenRouter ? 'openrouter' : 'lmstudio'),
+      model: modelInfo,
+      details: {
+        originalError: error.message,
+        code: error.code,
+        status: error.response?.status
+      }
     };
   }
 });

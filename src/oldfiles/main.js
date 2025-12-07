@@ -161,15 +161,16 @@ function createWindow() {
  */
 
 // Обработчик генерации проекта (Self-Build)
-ipcMain.handle('generate-project', async (event, task = null) => {
+ipcMain.handle('generate-project', async (event, task = null, options = {}) => {
   try {
-    logger.info('Начало генерации проекта через Self-Build', { task });
+    logger.info('Начало генерации проекта через Self-Build', { task, options });
     
     if (!selfDevAgent) {
       await initAgents();
     }
     
-    const result = await selfDevAgent.generateProject(task);
+    // Передаем опции модели в generateProject
+    const result = await selfDevAgent.generateProject(task, options);
     logger.info('Проект успешно сгенерирован', { 
       filesCount: result.savedFiles?.length || 0,
       files: result.savedFiles 

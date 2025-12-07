@@ -1,0 +1,46 @@
+{
+  "projectStructure": {
+    "data": {
+      "directories": [
+        "src\\agents",
+        "src\\ai",
+        "src\\ai\\providers",
+        "src\\oldfiles",
+        "src\\oldfiles\\agents",
+        "src\\oldfiles\\ai",
+        "src\\oldfiles\\ui",
+        "src\\ui",
+        "src\\Новая папка"
+      ],
+      "files": [
+        "src\\agents\\explain.js",
+        "src\\agents\\refactor.js",
+        "src\\ai\\router.js",
+        "src\\filepath",
+        "src\\index.html",
+        "src\\main.js",
+        "src\\oldfiles\\index.html",
+        "src\\oldfiles\\main.js",
+        "src\\oldfiles\\preload.js",
+        "src\\oldfiles\\style.css",
+        "src\\oldfiles\\testi.txt",
+        "src\\oldfiles\\ui.js",
+        "src\\preload.js",
+        "src\\script.js",
+        "src\\style.css",
+        "src\\testi.txt",
+        "src\\ui\\index.html",
+        "src\\ui\\ui.js",
+        "src\\ui.js"
+      ],
+      "mainFiles": [
+        "src\\index.html",
+        "src\\main.js",
+        "src\\oldfiles\\index.html",
+        "src\\oldfiles\\main.js",
+        "src\\ui\\index.html"
+      ]
+    },
+    "timestamp": 1765134660082
+  }
+}
