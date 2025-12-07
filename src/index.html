@@ -1,21 +1,274 @@
-<!-- Структура UI для VibeCode -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VibeCode</title>
-    <link rel="stylesheet" href="styles.css"> <!-- Подключаем стили -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: #252526;
+            padding: 15px 20px;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        h1 {
+            font-size: 18px;
+            font-weight: 500;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        
+        button:hover {
+            background: #1177bb;
+        }
+        
+        button:active {
+            background: #0a4d75;
+        }
+        
+        button.secondary {
+            background: #3e3e42;
+        }
+        
+        button.secondary:hover {
+            background: #4e4e52;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .sidebar {
+            width: 250px;
+            background: #252526;
+            border-right: 1px solid #3e3e42;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+        
+        .section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .section-title {
+            font-size: 12px;
+            color: #858585;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        
+        label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        
+        input[type="radio"] {
+            cursor: pointer;
+        }
+        
+        select {
+            background: #3e3e42;
+            color: #d4d4d4;
+            border: 1px solid #3e3e42;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            width: 100%;
+        }
+        
+        .chat-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #1e1e1e;
+        }
+        
+        .chat-output {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        
+        .message.user {
+            background: #264f78;
+        }
+        
+        .message.ai {
+            background: #2d2d30;
+        }
+        
+        .message.system {
+            background: #3e3e42;
+            color: #858585;
+        }
+        
+        .message-label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #4ec9b0;
+        }
+        
+        .chat-input-container {
+            padding: 15px;
+            border-top: 1px solid #3e3e42;
+            display: flex;
+            gap: 10px;
+        }
+        
+        #input {
+            flex: 1;
+            background: #3e3e42;
+            color: #d4d4d4;
+            border: 1px solid #3e3e42;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+        }
+        
+        #input:focus {
+            outline: none;
+            border-color: #0e639c;
+        }
+        
+        .logs-panel {
+            width: 300px;
+            background: #252526;
+            border-left: 1px solid #3e3e42;
+            padding: 15px;
+            overflow-y: auto;
+            font-size: 11px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: #858585;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            word-break: break-all;
+        }
+        
+        .status {
+            padding: 10px;
+            background: #0e639c;
+            color: white;
+            text-align: center;
+            font-size: 12px;
+        }
+    </style>
 </head>
 <body>
-    <div id="app">
-        <h1>Добро пожаловать в VibeCode</h1>
-        <div id="chat">
-            <textarea id="input" placeholder="Введите команду..."></textarea>
-            <button id="send">Отправить</button>
+    <div class="header">
+        <h1>VibeCode</h1>
+        <div class="controls">
+            <button id="selfBuild">Self-Build</button>
+            <button id="analyzeProject" class="secondary">Анализ проекта</button>
+            <button id="enhanceModules" class="secondary">Доработать модули</button>
         </div>
-        <div id="output"></div>
     </div>
-    <script src="ui.js"></script> <!-- Подключаем логику UI -->
+    
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="section">
+                <div class="section-title">AI Провайдер</div>
+                <label>
+                    <input type="radio" name="provider" value="lmstudio" checked> LM Studio (локальный)
+                </label>
+                <label>
+                    <input type="radio" name="provider" value="openrouter"> OpenRouter (API)
+                </label>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Модель LM Studio</div>
+                <select id="lmModel">
+                    <option value="deepseek">deepseek/deepseek-r1-0528-qwen3-8b</option>
+                    <option value="falcon">nomic-ai-gpt4all-falcon</option>
+                </select>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">Модель OpenRouter</div>
+                <select id="openRouterModel">
+                    <option value="gpt4">openai/gpt-4o-mini</option>
+                    <option value="claude">anthropic/claude-3.5-sonnet</option>
+                    <option value="deepseek">deepseek/deepseek-chat</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="chat-panel">
+            <div id="output" class="chat-output"></div>
+            <div class="chat-input-container">
+                <textarea id="input" placeholder="Введите задачу или вопрос..." rows="3"></textarea>
+                <button id="send">Отправить</button>
+                <button id="clear" class="secondary">Очистить</button>
+            </div>
+        </div>
+        
+        <div class="logs-panel">
+            <div class="section-title">Логи</div>
+            <div id="logs"></div>
+        </div>
+    </div>
+    
+    <div id="status" class="status">✅ Приложение готово к работе</div>
+    
+    <script src="ui.js"></script>
 </body>
 </html>
