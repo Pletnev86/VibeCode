@@ -12,5 +12,7 @@ contextBridge.exposeInMainWorld('api', {
     sendChatMessage: (message, options) => ipcRenderer.invoke('send-chat-message', message, options),
     getLogs: () => ipcRenderer.invoke('get-logs'),
     analyzeProject: (projectPath) => ipcRenderer.invoke('analyze-project', projectPath),
-    enhanceModules: (task, options) => ipcRenderer.invoke('enhance-modules', task, options)
+    enhanceModules: (task, options) => ipcRenderer.invoke('enhance-modules', task, options),
+    getSelfBuildState: () => ipcRenderer.invoke('get-selfbuild-state'),
+    clearSelfBuildState: () => ipcRenderer.invoke('clear-selfbuild-state')
 });

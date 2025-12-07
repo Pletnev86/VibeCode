@@ -20,6 +20,7 @@ const DocumentWatcher = require('../lib/document-watcher');
 const BackupManager = require('../lib/backup-manager');
 const TemplateSelector = require('../lib/template-selector');
 const RulesManager = require('../lib/rules-manager');
+const StateManager = require('../lib/state-manager');
 const { getLogger } = require('../lib/logger');
 
 // Инициализация логгера для SelfDev Agent
@@ -34,9 +35,19 @@ class SelfDevAgent {
     // Инициализация AI Router
     this.router = new AIRouter(configPath);
     
-    // Пути к документации
-    this.visionPath = path.resolve(this.agentConfig.visionPath || './docs/Vision.md');
-    this.roadmapPath = path.resolve(this.agentConfig.roadmapPath || './docs/Roadmap.md');
+    // Пути к документации (с fallback на альтернативные пути)
+    this.visionPath = this.findDocumentPath(this.agentConfig.visionPath || './docs/Vision.md', [
+      './docs/Vision.md',
+      './Vision.md',
+      './docs/ru/Vision.md',
+      './docs/en/Vision.md'
+    ]);
+    this.roadmapPath = this.findDocumentPath(this.agentConfig.roadmapPath || './docs/Roadmap.md', [
+      './docs/Roadmap.md',
+      './Roadmap.md',
+      './docs/ru/Roadmap.md',
+      './ROADMAP_DORABOTKA.md'
+    ]);
     
     // Путь для сохранения файлов
     this.srcPath = path.resolve('./src');
@@ -65,6 +76,9 @@ class SelfDevAgent {
     // Feedback Mechanism для обратной связи
     this.feedback = new FeedbackMechanism();
     
+    // State Manager для сохранения прогресса
+    this.stateManager = new StateManager();
+    
     // Кеш для Vision и Roadmap (для отслеживания изменений)
     this.visionCache = null;
     this.roadmapCache = null;
@@ -81,6 +95,30 @@ class SelfDevAgent {
         this.reloadContext();
       }
     );
+  }
+
+  /**
+   * Поиск документа по списку возможных путей
+   */
+  findDocumentPath(primaryPath, fallbackPaths = []) {
+    // Проверяем основной путь
+    const resolvedPrimary = path.resolve(primaryPath);
+    if (fs.existsSync(resolvedPrimary)) {
+      return resolvedPrimary;
+    }
+    
+    // Проверяем альтернативные пути
+    for (const fallbackPath of fallbackPaths) {
+      const resolvedFallback = path.resolve(fallbackPath);
+      if (fs.existsSync(resolvedFallback)) {
+        logger.info(`Документ найден по альтернативному пути: ${fallbackPath} (вместо ${primaryPath})`);
+        return resolvedFallback;
+      }
+    }
+    
+    // Если не найден, возвращаем основной путь (будет ошибка при чтении)
+    logger.warn(`Документ не найден ни по одному из путей: ${primaryPath}, ${fallbackPaths.join(', ')}`);
+    return resolvedPrimary;
   }
 
   /**
@@ -718,11 +756,38 @@ src/имя_файла.js
     const startTime = Date.now();
     let backupCreated = false;
     
+    // Проверяем сохраненное состояние
+    const savedState = this.stateManager.loadState();
+    const shouldResume = savedState && savedState.inProgress && !options.forceNew;
+    
     try {
-      this.log('=== Начало генерации проекта ===');
+      if (shouldResume) {
+        this.log('🔄 Восстановление предыдущей сессии Self-Build...');
+        this.log(`📊 Этап: ${savedState.currentStage || 'неизвестен'}`);
+        this.log(`📁 Сгенерировано файлов: ${savedState.filesGenerated?.length || 0}`);
+        this.log(`💾 Сохранено файлов: ${savedState.filesSaved?.length || 0}`);
+        
+        // Предлагаем продолжить или начать заново
+        if (options.resume !== false) {
+          this.log('✅ Продолжаем с сохраненного состояния');
+        } else {
+          this.log('🆕 Начинаем новую генерацию');
+          this.stateManager.clearState();
+        }
+      } else {
+        this.log('=== Начало генерации проекта ===');
+        // Сохраняем начальное состояние
+        this.stateManager.saveState({
+          inProgress: true,
+          task: task,
+          options: options,
+          currentStage: 'initialization',
+          startTime: startTime
+        });
+      }
       
       // Этап 0: Создание резервной копии перед изменениями
-      if (fs.existsSync(this.srcPath)) {
+      if (fs.existsSync(this.srcPath) && !shouldResume) {
         this.log('💾 Создание резервной копии перед изменениями...');
         await this.backupManager.createBackup(this.srcPath, `pre-selfbuild-${Date.now()}`);
         backupCreated = true;
@@ -731,12 +796,14 @@ src/имя_файла.js
       
       // Этап 1: Чтение Vision и Roadmap
       this.log('📖 Этап 1: Чтение Vision и Roadmap...');
+      this.stateManager.updateStage('reading_documents');
       const vision = this.readVision();
       const roadmap = this.readRoadmap();
       this.log('✅ Vision и Roadmap прочитаны');
       
       // Этап 2: Классификация задачи и выбор шаблона
       this.log('🔍 Этап 2: Классификация задачи...');
+      this.stateManager.updateStage('classification');
       const taskType = task ? this.router.classifyTask(task) : 'general';
       // Используем модель из options если передана, иначе выбираем автоматически
       const selectedModel = options.openRouterModel || options.model || this.router.selectModel(taskType);
@@ -755,10 +822,12 @@ src/имя_файла.js
       
       // Этап 3: Формирование промпта
       this.log('📝 Этап 3: Формирование промпта для AI...');
+      this.stateManager.updateStage('prompt_generation');
       const prompt = await this.generatePrompt(task, selectedTemplate, templateInstructions);
       
       // Этап 4: Отправка запроса к AI (с автоматическим переводом если нужно)
       this.log('🤖 Этап 4: Отправка запроса к AI Router...');
+      this.stateManager.updateStage('ai_request');
       // Объединяем опции из параметров с опциями из options
       const requestOptions = {
         temperature: 0.7,
@@ -771,8 +840,14 @@ src/имя_файла.js
       
       // Этап 5: Парсинг файлов из ответа
       this.log('🔧 Этап 5: Парсинг файлов из ответа...');
+      this.stateManager.updateStage('parsing_files');
       const files = this.parseFilesFromResult(response);
       this.log('✅ Найдено файлов:', files.length);
+      
+      // Сохраняем найденные файлы в состояние
+      for (const file of files) {
+        this.stateManager.addGeneratedFile(file.path, file.content);
+      }
       
       if (files.length === 0) {
         this.log('⚠️ Файлы не найдены в ответе. Сохраняю полный ответ для анализа.');
@@ -783,6 +858,7 @@ src/имя_файла.js
       
       // Этап 6: Сохранение файлов через Execution Layer
       this.log('💾 Этап 6: Сохранение файлов...');
+      this.stateManager.updateStage('saving_files');
       const savedFiles = [];
       for (const file of files) {
         try {
@@ -791,6 +867,7 @@ src/имя_файла.js
             file.content
           );
           savedFiles.push(savedPath);
+          this.stateManager.markFileSaved(file.path);
           this.log('  ✅ Сохранен:', file.path);
         } catch (error) {
           this.log('  ❌ Ошибка сохранения:', file.path, error.message);
@@ -810,6 +887,18 @@ src/имя_файла.js
       };
       
       this.feedback.recordTask(task || 'Self-Build', result, executionTime);
+      
+      // Сохраняем финальное состояние
+      this.stateManager.saveState({
+        inProgress: false,
+        completed: true,
+        task: task,
+        currentStage: 'completed',
+        filesGenerated: files.map(f => f.path),
+        filesSaved: savedFiles,
+        executionTime: executionTime,
+        completedAt: Date.now()
+      });
       
       this.log('=== Генерация проекта завершена ===');
       this.log(`⏱️ Время выполнения: ${executionTime}ms`);
@@ -831,6 +920,18 @@ src/имя_файла.js
           logger.error('Ошибка отката изменений', restoreError);
         }
       }
+      
+      // Сохраняем состояние ошибки для возможности восстановления
+      this.stateManager.saveState({
+        inProgress: true, // Оставляем inProgress=true для возможности восстановления
+        error: true,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        task: task,
+        currentStage: 'error',
+        executionTime: executionTime,
+        errorAt: Date.now()
+      });
       
       // Регистрация ошибки в Feedback Mechanism
       this.feedback.recordError(task || 'Self-Build', error, {

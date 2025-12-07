@@ -24,45 +24,56 @@ document.addEventListener('DOMContentLoaded', () => {
 /**
  * Инициализация UI
  */
-function initializeUI() {
+async function initializeUI() {
+    // Проверяем сохраненное состояние Self-Build при загрузке
+    try {
+        const stateResult = await window.api.getSelfBuildState();
+        if (stateResult.success && stateResult.state && stateResult.state.inProgress) {
+            const state = stateResult.state;
+            const message = state.error 
+                ? `⚠️ Обнаружена незавершенная сессия Self-Build с ошибкой.\nЭтап: ${state.currentStage || 'неизвестен'}\nОшибка: ${state.errorMessage || 'неизвестна'}\n\nПродолжить или начать заново?`
+                : `🔄 Обнаружена незавершенная сессия Self-Build.\nЭтап: ${state.currentStage || 'неизвестен'}\nСгенерировано файлов: ${state.filesGenerated?.length || 0}\n\nПродолжить с сохраненного состояния?`;
+            
+            addMessage('system', message);
+            
+            // Добавляем кнопки для выбора
+            const output = document.getElementById('output');
+            const lastMessage = output.lastElementChild;
+            if (lastMessage) {
+                const buttonsDiv = document.createElement('div');
+                buttonsDiv.style.cssText = 'margin-top: 10px; display: flex; gap: 10px;';
+                buttonsDiv.innerHTML = `
+                    <button id="resumeSelfBuild" style="padding: 8px 16px; background: #0e639c; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        Продолжить
+                    </button>
+                    <button id="clearSelfBuildState" style="padding: 8px 16px; background: #3e3e42; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                        Начать заново
+                    </button>
+                `;
+                lastMessage.appendChild(buttonsDiv);
+                
+                document.getElementById('resumeSelfBuild').addEventListener('click', async () => {
+                    updateStatus('🔄 Продолжение Self-Build...');
+                    await handleSelfBuild({ resume: true });
+                });
+                
+                document.getElementById('clearSelfBuildState').addEventListener('click', async () => {
+                    await window.api.clearSelfBuildState();
+                    updateStatus('🗑️ Состояние очищено, можно начать новую генерацию');
+                    addMessage('system', '✅ Состояние очищено. Можете начать новую генерацию.');
+                });
+            }
+        }
+    } catch (error) {
+        console.warn('Ошибка проверки состояния Self-Build:', error);
+    }
+    
     // Кнопка отправки сообщения
     document.getElementById('send').addEventListener('click', sendMessage);
     
-    // Горячие клавиши
-    document.addEventListener('keydown', (e) => {
-        // Ctrl+Enter или Enter - отправить сообщение
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-            e.preventDefault();
-            sendMessage();
-        } else if (e.key === 'Enter' && !e.shiftKey && document.activeElement === document.getElementById('input')) {
-            e.preventDefault();
-            sendMessage();
-        }
-        
-        // Ctrl+B - Self-Build
-        if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-            e.preventDefault();
-            if (!document.getElementById('selfBuild').disabled) {
-                handleSelfBuild();
-            }
-        }
-        
-        // Ctrl+K - очистить чат
-        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-            e.preventDefault();
-            document.getElementById('output').innerHTML = '';
-            updateStatus('🗑️ Чат очищен');
-        }
-        
-        // Esc - отменить/очистить фокус
-        if (e.key === 'Escape') {
-            document.getElementById('input').blur();
-        }
-    });
-    
     // Enter для отправки (Shift+Enter для новой строки)
     document.getElementById('input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             sendMessage();
         }
@@ -94,27 +105,12 @@ function initializeUI() {
     document.getElementById('lmModel').addEventListener('change', (e) => {
         currentModel = e.target.value;
         updateStatus(`🔄 Модель LM Studio: ${currentModel}`);
-        updateModelStatus('lmModelStatus', currentModel, 'lmstudio');
     });
     
     // Выбор модели OpenRouter
     document.getElementById('openRouterModel').addEventListener('change', (e) => {
         currentOpenRouterModel = e.target.value;
         updateStatus(`🔄 Модель OpenRouter: ${currentOpenRouterModel}`);
-        updateModelStatus('openRouterModelStatus', currentOpenRouterModel, 'openrouter');
-    });
-    
-    // Обновление статуса модели при переключении провайдера
-    document.querySelectorAll('input[name="provider"]').forEach(radio => {
-        radio.addEventListener('change', (e) => {
-            if (e.target.value === 'lmstudio') {
-                updateModelStatus('lmModelStatus', currentModel, 'lmstudio');
-                updateModelStatus('openRouterModelStatus', '', '');
-            } else {
-                updateModelStatus('openRouterModelStatus', currentOpenRouterModel, 'openrouter');
-                updateModelStatus('lmModelStatus', '', '');
-            }
-        });
     });
     
     // Периодическое обновление логов
@@ -201,62 +197,11 @@ async function sendMessage() {
             
             addMessage('ai', responseText);
         } else {
-            // Показываем детальную информацию об ошибке с предложением переключиться
-            let errorMsg = `❌ Ошибка: ${result.error || 'Неизвестная ошибка'}`;
-            
-            if (result.suggestion) {
-                errorMsg += `\n\n💡 Рекомендация: ${result.suggestion}`;
-            }
-            
-            if (result.model) {
-                errorMsg += `\n📊 Использовалась модель: ${result.model}`;
-            }
-            
-            if (result.details && result.details.status) {
-                errorMsg += `\n🔢 HTTP статус: ${result.details.status}`;
-            }
-            
-            addMessage('ai', errorMsg);
-            
-            // Если есть предложение, показываем кнопку для быстрого переключения
-            if (result.suggestion && result.provider) {
-                const switchMsg = document.createElement('div');
-                switchMsg.className = 'error-suggestion';
-                switchMsg.style.cssText = 'margin-top: 10px; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;';
-                
-                const switchText = result.provider === 'openrouter' 
-                    ? 'Переключиться на LM Studio (локальный)'
-                    : 'Переключиться на OpenRouter (API)';
-                
-                switchMsg.innerHTML = `
-                    <div style="margin-bottom: 8px;">${result.suggestion}</div>
-                    <button id="switchProviderBtn" style="padding: 6px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                        ${switchText}
-                    </button>
-                `;
-                
-                const output = document.getElementById('output');
-                const lastMessage = output.lastElementChild;
-                if (lastMessage) {
-                    lastMessage.appendChild(switchMsg);
-                    
-                    // Обработчик кнопки переключения
-                    document.getElementById('switchProviderBtn').addEventListener('click', () => {
-                        if (result.provider === 'openrouter') {
-                            document.querySelector('input[name="provider"][value="lmstudio"]').click();
-                        } else {
-                            document.querySelector('input[name="provider"][value="openrouter"]').click();
-                        }
-                        updateStatus(`🔄 Переключено на ${result.provider === 'openrouter' ? 'LM Studio' : 'OpenRouter'}`);
-                    });
-                }
-            }
+            addMessage('ai', `❌ Ошибка: ${result.error || 'Неизвестная ошибка'}`);
         }
     } catch (error) {
         removeMessage(loadingId);
-        let errorMsg = `❌ Ошибка: ${error.message}`;
-        errorMsg += '\n\n💡 Рекомендация: Попробуйте переключиться на другой провайдер или модель.';
-        addMessage('ai', errorMsg);
+        addMessage('ai', `❌ Ошибка: ${error.message}`);
         console.error('❌ Ошибка в результате:', error);
     }
 }
@@ -264,7 +209,7 @@ async function sendMessage() {
 /**
  * Обработка Self-Build
  */
-async function handleSelfBuild() {
+async function handleSelfBuild(options = {}) {
     const button = document.getElementById('selfBuild');
     
     button.disabled = true;
@@ -278,11 +223,15 @@ async function handleSelfBuild() {
         const model = useOpenRouter ? undefined : currentModel;
         const openRouterModel = useOpenRouter ? currentOpenRouterModel : undefined;
         
-        const result = await window.api.generateProject(null, {
+        // Объединяем опции из параметров с опциями из UI
+        const requestOptions = {
             useOpenRouter: useOpenRouter,
             model: model,
-            openRouterModel: openRouterModel
-        });
+            openRouterModel: openRouterModel,
+            ...options // Передаем опции для восстановления состояния
+        };
+        
+        const result = await window.api.generateProject(null, requestOptions);
         
         if (result.success) {
             addMessage('system', '✅ Проект успешно сгенерирован!');
@@ -443,28 +392,12 @@ async function loadLogs() {
 /**
  * Обновление статуса
  */
-function updateStatus(message, type = 'success') {
+function updateStatus(message) {
     const statusDiv = document.getElementById('status');
     if (statusDiv) {
         statusDiv.textContent = message;
-        statusDiv.className = `status ${type}`;
         setTimeout(() => {
             statusDiv.textContent = '✅ Приложение готово к работе';
-            statusDiv.className = 'status success';
-        }, 4000);
-    }
-}
-
-function updateModelStatus(elementId, model, provider) {
-    const statusDiv = document.getElementById(elementId);
-    if (statusDiv) {
-        const currentProvider = document.querySelector('input[name="provider"]:checked').value;
-        if (currentProvider === provider && model) {
-            statusDiv.textContent = `✓ Активна: ${model}`;
-            statusDiv.className = 'model-status active';
-        } else {
-            statusDiv.textContent = 'Готово';
-            statusDiv.className = 'model-status';
-        }
+        }, 3000);
     }
 }

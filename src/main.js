@@ -41,7 +41,6 @@ let selfDevAgent = null;
 let interAgentController = null;
 let knowledgeBase = null;
 let chatContextManager = null;
-let documentationManager = null;
 
 /**
  * Инициализация базы знаний (опционально)
@@ -52,21 +51,6 @@ function initKnowledgeBase() {
     knowledgeBase = new KnowledgeBase();
     if (knowledgeBase.available) {
       logger.info('База знаний инициализирована');
-      
-      // Инициализация менеджера документации
-      try {
-        const DocumentationManager = require('../lib/documentation-manager');
-        documentationManager = new DocumentationManager(knowledgeBase);
-        
-        // Автоматическая индексация документации при старте
-        documentationManager.indexAllDocumentation().then(result => {
-          logger.info(`Документация проиндексирована: ${result.processed} файлов`);
-        }).catch(error => {
-          logger.warn('Ошибка индексации документации', null, error);
-        });
-      } catch (error) {
-        logger.warn('DocumentationManager недоступен', null, error);
-      }
     } else {
       logger.warn('База знаний недоступна, работаем без неё');
     }
@@ -183,6 +167,21 @@ ipcMain.handle('generate-project', async (event, task = null, options = {}) => {
     
     if (!selfDevAgent) {
       await initAgents();
+    }
+    
+    // Проверяем сохраненное состояние и предлагаем восстановление
+    if (selfDevAgent.stateManager) {
+      const savedState = selfDevAgent.stateManager.loadState();
+      if (savedState && savedState.inProgress && !options.forceNew) {
+        logger.info('Обнаружено сохраненное состояние Self-Build', {
+          stage: savedState.currentStage,
+          filesGenerated: savedState.filesGenerated?.length || 0
+        });
+        // Автоматически продолжаем если не указано иное
+        if (options.resume !== false) {
+          options.resume = true;
+        }
+      }
     }
     
     // Передаем опции модели в generateProject
@@ -469,35 +468,59 @@ ipcMain.handle('send-chat-message', async (event, message, options = {}) => {
       options 
     });
     
-    // Формируем детальное сообщение об ошибке с предложением переключиться
-    let errorMessage = error.message || 'Неизвестная ошибка';
-    let suggestion = '';
-    
-    if (error.suggestion) {
-      suggestion = error.suggestion;
-    } else if (error.provider === 'openrouter') {
-      suggestion = 'Попробуйте переключиться на LM Studio (локальный) или другую модель OpenRouter.';
-    } else if (error.provider === 'lmstudio') {
-      suggestion = 'Попробуйте переключиться на OpenRouter (API) или проверьте настройки LM Studio.';
-    } else {
-      suggestion = 'Попробуйте переключиться на другой провайдер или модель.';
-    }
-    
-    // Добавляем информацию о модели для отладки
-    const modelInfo = useOpenRouter ? `OpenRouter: ${openRouterModel || 'не указана'}` : `LM Studio: ${model || 'не указана'}`;
-    
     return {
       success: false,
-      error: errorMessage,
-      suggestion: suggestion,
-      provider: error.provider || (useOpenRouter ? 'openrouter' : 'lmstudio'),
-      model: modelInfo,
-      details: {
-        originalError: error.message,
-        code: error.code,
-        status: error.response?.status
-      }
+      error: error.message
     };
+  }
+});
+
+// Обработчик получения состояния Self-Build
+ipcMain.handle('get-selfbuild-state', async (event) => {
+  try {
+    if (!selfDevAgent) {
+      await initAgents();
+    }
+    
+    if (selfDevAgent && selfDevAgent.stateManager) {
+      const state = selfDevAgent.stateManager.loadState();
+      return {
+        success: true,
+        state: state
+      };
+    }
+    
+    return {
+      success: true,
+      state: null
+    };
+  } catch (error) {
+    logger.error('Ошибка получения состояния Self-Build', error);
+    return {
+      success: false,
+      error: error.message,
+      state: null
+    };
+  }
+});
+
+// Обработчик очистки состояния Self-Build
+ipcMain.handle('clear-selfbuild-state', async (event) => {
+  try {
+    if (!selfDevAgent) {
+      await initAgents();
+    }
+    
+    if (selfDevAgent && selfDevAgent.stateManager) {
+      selfDevAgent.stateManager.clearState();
+      logger.info('Состояние Self-Build очищено');
+      return { success: true };
+    }
+    
+    return { success: false, error: 'StateManager недоступен' };
+  } catch (error) {
+    logger.error('Ошибка очистки состояния Self-Build', error);
+    return { success: false, error: error.message };
   }
 });
 
