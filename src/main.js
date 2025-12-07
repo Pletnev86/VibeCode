@@ -51,6 +51,21 @@ function initKnowledgeBase() {
     knowledgeBase = new KnowledgeBase();
     if (knowledgeBase.available) {
       logger.info('База знаний инициализирована');
+      
+      // Инициализация менеджера документации
+      try {
+        const DocumentationManager = require('../lib/documentation-manager');
+        const documentationManager = new DocumentationManager(knowledgeBase);
+        
+        // Автоматическая индексация документации при старте
+        documentationManager.indexAllDocumentation().then(result => {
+          logger.info(`Документация проиндексирована: ${result.processed} файлов`);
+        }).catch(error => {
+          logger.warn('Ошибка индексации документации', null, error);
+        });
+      } catch (error) {
+        logger.warn('DocumentationManager недоступен', null, error);
+      }
     } else {
       logger.warn('База знаний недоступна, работаем без неё');
     }
