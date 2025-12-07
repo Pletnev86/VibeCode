@@ -68,12 +68,44 @@ async function initializeUI() {
         console.warn('Ошибка проверки состояния Self-Build:', error);
     }
     
+    // Горячие клавиши
+    document.addEventListener('keydown', (e) => {
+        // Ctrl+Enter или Enter - отправить сообщение
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            sendMessage();
+        } else if (e.key === 'Enter' && !e.shiftKey && document.activeElement === document.getElementById('input')) {
+            e.preventDefault();
+            sendMessage();
+        }
+        
+        // Ctrl+B - Self-Build
+        if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+            e.preventDefault();
+            if (!document.getElementById('selfBuild').disabled) {
+                handleSelfBuild();
+            }
+        }
+        
+        // Ctrl+K - очистить чат
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            document.getElementById('output').innerHTML = '';
+            updateStatus('🗑️ Чат очищен');
+        }
+        
+        // Esc - отменить/очистить фокус
+        if (e.key === 'Escape') {
+            document.getElementById('input').blur();
+        }
+    });
+    
     // Кнопка отправки сообщения
     document.getElementById('send').addEventListener('click', sendMessage);
     
     // Enter для отправки (Shift+Enter для новой строки)
     document.getElementById('input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
             e.preventDefault();
             sendMessage();
         }
@@ -197,11 +229,62 @@ async function sendMessage() {
             
             addMessage('ai', responseText);
         } else {
-            addMessage('ai', `❌ Ошибка: ${result.error || 'Неизвестная ошибка'}`);
+            // Показываем детальную информацию об ошибке с предложением переключиться
+            let errorMsg = `❌ Ошибка: ${result.error || 'Неизвестная ошибка'}`;
+            
+            if (result.suggestion) {
+                errorMsg += `\n\n💡 Рекомендация: ${result.suggestion}`;
+            }
+            
+            if (result.model) {
+                errorMsg += `\n📊 Использовалась модель: ${result.model}`;
+            }
+            
+            if (result.details && result.details.status) {
+                errorMsg += `\n🔢 HTTP статус: ${result.details.status}`;
+            }
+            
+            addMessage('ai', errorMsg);
+            
+            // Если есть предложение, показываем кнопку для быстрого переключения
+            if (result.suggestion && result.provider) {
+                const output = document.getElementById('output');
+                const lastMessage = output.lastElementChild;
+                if (lastMessage) {
+                    const switchMsg = document.createElement('div');
+                    switchMsg.className = 'error-suggestion';
+                    switchMsg.style.cssText = 'margin-top: 10px; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;';
+                    
+                    const switchText = result.provider === 'openrouter' 
+                        ? 'Переключиться на LM Studio (локальный)'
+                        : 'Переключиться на OpenRouter (API)';
+                    
+                    switchMsg.innerHTML = `
+                        <div style="margin-bottom: 8px;">${result.suggestion}</div>
+                        <button id="switchProviderBtn" style="padding: 6px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            ${switchText}
+                        </button>
+                    `;
+                    
+                    lastMessage.appendChild(switchMsg);
+                    
+                    // Обработчик кнопки переключения
+                    document.getElementById('switchProviderBtn').addEventListener('click', () => {
+                        if (result.provider === 'openrouter') {
+                            document.querySelector('input[name="provider"][value="lmstudio"]').click();
+                        } else {
+                            document.querySelector('input[name="provider"][value="openrouter"]').click();
+                        }
+                        updateStatus(`🔄 Переключено на ${result.provider === 'openrouter' ? 'LM Studio' : 'OpenRouter'}`);
+                    });
+                }
+            }
         }
     } catch (error) {
         removeMessage(loadingId);
-        addMessage('ai', `❌ Ошибка: ${error.message}`);
+        let errorMsg = `❌ Ошибка: ${error.message}`;
+        errorMsg += '\n\n💡 Рекомендация: Попробуйте переключиться на другой провайдер или модель.';
+        addMessage('ai', errorMsg);
         console.error('❌ Ошибка в результате:', error);
     }
 }
