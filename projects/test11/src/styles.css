@@ -1,0 +1,49 @@
+/* Базовые сбросы и глобальные стили */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 20px;
+}
+
+.container {
+  text-align: center;
+  background: white;
+  padding: 2rem;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  max-width: 90%;
+  width: 100%;
+}
+
+#myButton {
+  background: #4a6cf7;
+  color: white;
+  border: none;
+  padding: 15px 40px;
+  font-size: 1.2rem;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(74, 108, 247, 0.3);
+}
+
+#myButton:hover {
+  background: #3a56e0;
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(74, 108, 247, 0.4);
+}
+
+#myButton:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 5px rgba(74, 108, 247, 0.4);
+}

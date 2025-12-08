@@ -859,18 +859,84 @@ src/имя_файла.js
       // Этап 6: Сохранение файлов через Execution Layer
       this.log('💾 Этап 6: Сохранение файлов...');
       this.stateManager.updateStage('saving_files');
+      
+      // Список критичных файлов, которые нельзя перезаписывать
+      // Критичные файлы приложения - НЕ ДОЛЖНЫ перезаписываться Self-Build
+      const criticalFiles = [
+        'main.js',
+        'preload.js',
+        'ui.js',
+        'index.html',
+        'style.css', // CSS файл интерфейса
+        'vibecode.html', // Альтернативное имя для index.html
+        'app.js' // Альтернативное имя для main.js
+      ];
+      
+      // Также защищаем файлы в корне src/ (без поддиректорий)
+      const criticalPaths = [
+        'src/main.js',
+        'src/preload.js',
+        'src/ui.js',
+        'src/index.html',
+        'src/style.css'
+      ];
+      
       const savedFiles = [];
       for (const file of files) {
         try {
-          const savedPath = await this.executor.writeFile(
-            path.join(this.srcPath, file.path),
-            file.content
-          );
-          savedFiles.push(savedPath);
-          this.stateManager.markFileSaved(file.path);
-          this.log('  ✅ Сохранен:', file.path);
+          // Нормализуем путь файла
+          const normalizedPath = file.path.replace(/\\/g, '/').replace(/^src\//, '');
+          const fileName = path.basename(normalizedPath);
+          const fullPath = path.join(this.srcPath, normalizedPath).replace(/\\/g, '/');
+          
+          // Проверяем, не является ли файл критичным (по имени файла)
+          if (criticalFiles.includes(fileName)) {
+            this.log('  ⚠️ Пропущен критичный файл (защита от перезаписи):', file.path);
+            this.log('  💡 Для изменения критичных файлов используйте ручное редактирование');
+            continue;
+          }
+          
+          // Проверяем, не является ли путь критичным (полный путь)
+          const isCriticalPath = criticalPaths.some(criticalPath => {
+            const normalizedCritical = criticalPath.replace(/\\/g, '/');
+            return fullPath.includes(normalizedCritical) || normalizedPath === normalizedCritical.replace('src/', '');
+          });
+          
+          if (isCriticalPath) {
+            this.log('  ⚠️ Пропущен критичный путь (защита от перезаписи):', file.path);
+            this.log('  💡 Для изменения критичных файлов используйте ручное редактирование');
+            continue;
+          }
+          
+          // Дополнительная проверка: если файл находится в корне src/ и это системный файл
+          const isInSrcRoot = !normalizedPath.includes('/') && !normalizedPath.includes('\\');
+          const systemFileNames = ['main.js', 'preload.js', 'ui.js', 'index.html', 'style.css'];
+          if (isInSrcRoot && systemFileNames.includes(fileName)) {
+            this.log('  ⚠️ Пропущен системный файл в корне src/ (защита от перезаписи):', file.path);
+            this.log('  💡 Для изменения системных файлов используйте ручное редактирование');
+            continue;
+          }
+          
+          // Пытаемся сохранить файл (ExecutionLayer также проверит защиту)
+          try {
+            const savedPath = await this.executor.writeFile(
+              path.join(this.srcPath, normalizedPath),
+              file.content
+            );
+            savedFiles.push(savedPath);
+            this.stateManager.markFileSaved(normalizedPath);
+            this.log('  ✅ Сохранен:', normalizedPath);
+          } catch (writeError) {
+            // Если ошибка связана с защитой критичных файлов - это нормально
+            if (writeError.message && writeError.message.includes('ЗАЩИТА')) {
+              this.log('  ⚠️', writeError.message);
+              this.log('  💡 Для изменения критичных файлов используйте ручное редактирование');
+            } else {
+              this.log('  ❌ Ошибка сохранения:', file.path, writeError.message);
+            }
+          }
         } catch (error) {
-          this.log('  ❌ Ошибка сохранения:', file.path, error.message);
+          this.log('  ❌ Ошибка обработки файла:', file.path, error.message);
         }
       }
       this.log('✅ Сохранено файлов:', savedFiles.length);

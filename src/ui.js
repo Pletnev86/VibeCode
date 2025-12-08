@@ -15,110 +15,61 @@ let currentModel = 'deepseek';
 let currentOpenRouterModel = 'gpt4';
 
 // Инициализация при загрузке
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('✅ UI инициализирован');
+    // Очищаем логи при загрузке для свежего старта новой сессии
+    const logsDiv = document.getElementById('logs');
+    if (logsDiv) {
+        logsDiv.innerHTML = '<div class="log-entry">[Новая сессия] Логи текущей сессии VibeCode</div>';
+    }
     initializeUI();
-    loadLogs();
+    
+    // Загружаем историю чатов проекта если проект открыт
+    try {
+        const projectResult = await window.api.getCurrentProject();
+        if (projectResult.success && projectResult.project && projectResult.project.desktop) {
+            const desktop = projectResult.project.desktop;
+            if (desktop.chatHistory && desktop.chatHistory.length > 0) {
+                console.log('Загрузка истории чатов проекта:', desktop.chatHistory.length, 'сообщений');
+                const outputDiv = document.getElementById('output');
+                desktop.chatHistory.forEach(msg => {
+                    if (msg.role === 'user') {
+                        addMessage('user', msg.message);
+                    } else if (msg.role === 'assistant') {
+                        addMessage('ai', msg.message);
+                    }
+                });
+                // Прокручиваем вниз
+                if (outputDiv) {
+                    outputDiv.scrollTop = outputDiv.scrollHeight;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки истории чатов:', error);
+    }
+    
+    // Загружаем логи с небольшой задержкой, чтобы сессия успела инициализироваться
+    setTimeout(loadLogs, 500);
 });
 
 /**
  * Инициализация UI
  */
-async function initializeUI() {
-    // Проверяем сохраненное состояние Self-Build при загрузке
-    try {
-        const stateResult = await window.api.getSelfBuildState();
-        if (stateResult.success && stateResult.state && stateResult.state.inProgress) {
-            const state = stateResult.state;
-            const message = state.error 
-                ? `⚠️ Обнаружена незавершенная сессия Self-Build с ошибкой.\nЭтап: ${state.currentStage || 'неизвестен'}\nОшибка: ${state.errorMessage || 'неизвестна'}\n\nПродолжить или начать заново?`
-                : `🔄 Обнаружена незавершенная сессия Self-Build.\nЭтап: ${state.currentStage || 'неизвестен'}\nСгенерировано файлов: ${state.filesGenerated?.length || 0}\n\nПродолжить с сохраненного состояния?`;
-            
-            addMessage('system', message);
-            
-            // Добавляем кнопки для выбора
-            const output = document.getElementById('output');
-            const lastMessage = output.lastElementChild;
-            if (lastMessage) {
-                const buttonsDiv = document.createElement('div');
-                buttonsDiv.style.cssText = 'margin-top: 10px; display: flex; gap: 10px;';
-                buttonsDiv.innerHTML = `
-                    <button id="resumeSelfBuild" style="padding: 8px 16px; background: #0e639c; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                        Продолжить
-                    </button>
-                    <button id="clearSelfBuildState" style="padding: 8px 16px; background: #3e3e42; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                        Начать заново
-                    </button>
-                `;
-                lastMessage.appendChild(buttonsDiv);
-                
-                document.getElementById('resumeSelfBuild').addEventListener('click', async () => {
-                    updateStatus('🔄 Продолжение Self-Build...');
-                    await handleSelfBuild({ resume: true });
-                });
-                
-                document.getElementById('clearSelfBuildState').addEventListener('click', async () => {
-                    await window.api.clearSelfBuildState();
-                    updateStatus('🗑️ Состояние очищено, можно начать новую генерацию');
-                    addMessage('system', '✅ Состояние очищено. Можете начать новую генерацию.');
-                });
-            }
-        }
-    } catch (error) {
-        console.warn('Ошибка проверки состояния Self-Build:', error);
-    }
-    
-    // Горячие клавиши
-    document.addEventListener('keydown', (e) => {
-        // Ctrl+Enter или Enter - отправить сообщение
-        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-            e.preventDefault();
-            sendMessage();
-        } else if (e.key === 'Enter' && !e.shiftKey && document.activeElement === document.getElementById('input')) {
-            e.preventDefault();
-            sendMessage();
-        }
-        
-        // Ctrl+B - Self-Build
-        if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-            e.preventDefault();
-            if (!document.getElementById('selfBuild').disabled) {
-                handleSelfBuild();
-            }
-        }
-        
-        // Ctrl+K - очистить чат
-        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-            e.preventDefault();
-            document.getElementById('output').innerHTML = '';
-            updateStatus('🗑️ Чат очищен');
-        }
-        
-        // Esc - отменить/очистить фокус
-        if (e.key === 'Escape') {
-            document.getElementById('input').blur();
-        }
-    });
-    
+function initializeUI() {
     // Кнопка отправки сообщения
     document.getElementById('send').addEventListener('click', sendMessage);
     
     // Enter для отправки (Shift+Enter для новой строки)
     document.getElementById('input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             sendMessage();
         }
     });
     
-    // Кнопка Self-Build
-    document.getElementById('selfBuild').addEventListener('click', handleSelfBuild);
-    
     // Кнопка анализа проекта
     document.getElementById('analyzeProject').addEventListener('click', handleAnalyzeProject);
-    
-    // Кнопка доработки модулей
-    document.getElementById('enhanceModules').addEventListener('click', handleEnhanceModules);
     
     // Кнопка очистки
     document.getElementById('clear').addEventListener('click', () => {
@@ -176,6 +127,18 @@ async function sendMessage() {
         console.log('📤 Отправка сообщения через', useOpenRouter ? 'openrouter' : 'lmstudio');
         console.log('📤 Опции:', { useOpenRouter, model, openRouterModel });
         
+        // Показываем выбранную модель в системном сообщении
+        const selectedModelName = useOpenRouter 
+            ? (openRouterModel === 'gpt4' ? 'openai/gpt-4o-mini' : 
+               openRouterModel === 'claude' ? 'anthropic/claude-3.5-sonnet' :
+               openRouterModel === 'deepseek' ? 'deepseek/deepseek-chat' :
+               openRouterModel === 'deepseek-r1' ? 'deepseek/deepseek-r1' :
+               openRouterModel === 'deepseek-free' ? 'deepseek/deepseek-r1:free' : openRouterModel)
+            : (model === 'deepseek' ? 'deepseek/deepseek-r1-0528-qwen3-8b' : 
+               model === 'llama3' ? 'llama-3-8b-gpt-4o-ru1.0' : model);
+        const providerName = useOpenRouter ? 'OpenRouter' : 'LM Studio';
+        addMessage('system', `📤 Отправка запроса через ${providerName}, модель: ${selectedModelName}`);
+        
         // Отправляем запрос
         const result = await window.api.sendChatMessage(message, {
             useOpenRouter: useOpenRouter,
@@ -215,11 +178,25 @@ async function sendMessage() {
             // Добавляем ответ AI
             let responseText = typeof response === 'string' ? response : JSON.stringify(response, null, 2);
             
-            // Добавляем метаданные если есть
+            // Добавляем информацию о модели в начало ответа
+            let modelInfo = '';
             if (result.metadata) {
-                if (result.metadata.executionTime) {
-                    responseText += `\n\n⏱️ Время выполнения: ${result.metadata.executionTime} сек`;
+                if (result.metadata.model) {
+                    const providerName = result.metadata.provider === 'openrouter' ? 'OpenRouter' : 'LM Studio';
+                    modelInfo = `\n\n🤖 Использована модель: ${result.metadata.model} (${providerName})`;
+                    
+                    // Если запрошенная модель отличается от фактической, показываем предупреждение
+                    if (result.metadata.requestedModel && result.metadata.requestedModel !== result.metadata.model) {
+                        modelInfo += `\n⚠️ Запрошена: ${result.metadata.requestedModel}, но использована: ${result.metadata.model}`;
+                    }
                 }
+                
+                if (result.metadata.executionTime) {
+                    responseText += `\n\n⏱️ Время выполнения: ${(result.metadata.executionTime / 1000).toFixed(2)} сек`;
+                } else {
+                    responseText += `\n\n⏱️ Время выполнения: ${executionTime} сек`;
+                }
+                
                 if (result.metadata.tokens) {
                     responseText += `\n🎫 Использовано токенов: ${result.metadata.tokens.total} (промпт: ${result.metadata.tokens.prompt}, ответ: ${result.metadata.tokens.completion})`;
                 }
@@ -227,113 +204,30 @@ async function sendMessage() {
                 responseText += `\n\n⏱️ Время выполнения: ${executionTime} сек`;
             }
             
+            // Добавляем информацию о модели
+            responseText += modelInfo;
+            
             addMessage('ai', responseText);
-        } else {
-            // Показываем детальную информацию об ошибке с предложением переключиться
-            let errorMsg = `❌ Ошибка: ${result.error || 'Неизвестная ошибка'}`;
             
-            if (result.suggestion) {
-                errorMsg += `\n\n💡 Рекомендация: ${result.suggestion}`;
-            }
-            
-            if (result.model) {
-                errorMsg += `\n📊 Использовалась модель: ${result.model}`;
-            }
-            
-            if (result.details && result.details.status) {
-                errorMsg += `\n🔢 HTTP статус: ${result.details.status}`;
-            }
-            
-            addMessage('ai', errorMsg);
-            
-            // Если есть предложение, показываем кнопку для быстрого переключения
-            if (result.suggestion && result.provider) {
-                const output = document.getElementById('output');
-                const lastMessage = output.lastElementChild;
-                if (lastMessage) {
-                    const switchMsg = document.createElement('div');
-                    switchMsg.className = 'error-suggestion';
-                    switchMsg.style.cssText = 'margin-top: 10px; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;';
-                    
-                    const switchText = result.provider === 'openrouter' 
-                        ? 'Переключиться на LM Studio (локальный)'
-                        : 'Переключиться на OpenRouter (API)';
-                    
-                    switchMsg.innerHTML = `
-                        <div style="margin-bottom: 8px;">${result.suggestion}</div>
-                        <button id="switchProviderBtn" style="padding: 6px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                            ${switchText}
-                        </button>
-                    `;
-                    
-                    lastMessage.appendChild(switchMsg);
-                    
-                    // Обработчик кнопки переключения
-                    document.getElementById('switchProviderBtn').addEventListener('click', () => {
-                        if (result.provider === 'openrouter') {
-                            document.querySelector('input[name="provider"][value="lmstudio"]').click();
-                        } else {
-                            document.querySelector('input[name="provider"][value="openrouter"]').click();
-                        }
-                        updateStatus(`🔄 Переключено на ${result.provider === 'openrouter' ? 'LM Studio' : 'OpenRouter'}`);
-                    });
+            // Также добавляем информацию о модели в системное сообщение для логов
+            if (result.metadata && result.metadata.model) {
+                const providerName = result.metadata.provider === 'openrouter' ? 'OpenRouter' : 'LM Studio';
+                let modelLogMessage = `🤖 Использована модель: ${result.metadata.model} (${providerName})`;
+                
+                // Если запрошенная модель отличается от фактической, показываем предупреждение
+                if (result.metadata.requestedModel && result.metadata.requestedModel !== result.metadata.model) {
+                    modelLogMessage += ` ⚠️ Запрошена: ${result.metadata.requestedModel}`;
                 }
+                
+                addMessage('system', modelLogMessage);
             }
+        } else {
+            addMessage('ai', `❌ Ошибка: ${result.error || 'Неизвестная ошибка'}`);
         }
     } catch (error) {
         removeMessage(loadingId);
-        let errorMsg = `❌ Ошибка: ${error.message}`;
-        errorMsg += '\n\n💡 Рекомендация: Попробуйте переключиться на другой провайдер или модель.';
-        addMessage('ai', errorMsg);
+        addMessage('ai', `❌ Ошибка: ${error.message}`);
         console.error('❌ Ошибка в результате:', error);
-    }
-}
-
-/**
- * Обработка Self-Build
- */
-async function handleSelfBuild(options = {}) {
-    const button = document.getElementById('selfBuild');
-    
-    button.disabled = true;
-    button.textContent = '⏳ Генерация...';
-    
-    addMessage('system', '🚀 Начало генерации проекта через Self-Build...');
-    
-    try {
-        // Определяем опции для запроса (используем выбранную модель из UI)
-        const useOpenRouter = currentProvider === 'openrouter';
-        const model = useOpenRouter ? undefined : currentModel;
-        const openRouterModel = useOpenRouter ? currentOpenRouterModel : undefined;
-        
-        // Объединяем опции из параметров с опциями из UI
-        const requestOptions = {
-            useOpenRouter: useOpenRouter,
-            model: model,
-            openRouterModel: openRouterModel,
-            ...options // Передаем опции для восстановления состояния
-        };
-        
-        const result = await window.api.generateProject(null, requestOptions);
-        
-        if (result.success) {
-            addMessage('system', '✅ Проект успешно сгенерирован!');
-            if (result.files && result.files.length > 0) {
-                addMessage('system', `📁 Создано файлов: ${result.files.length}`);
-                addMessage('system', `💾 Сохранено файлов: ${result.files.length}`);
-                addMessage('system', 'Созданные файлы:');
-                result.files.forEach(file => {
-                    addMessage('system', `- ${file}`);
-                });
-            }
-        } else {
-            addMessage('system', `❌ Ошибка: ${result.error || 'Неизвестная ошибка'}`);
-        }
-    } catch (error) {
-        addMessage('system', `❌ Ошибка: ${error.message}`);
-    } finally {
-        button.disabled = false;
-        button.textContent = 'Self-Build';
     }
 }
 
@@ -358,48 +252,6 @@ async function handleAnalyzeProject() {
             }
         } else {
             addMessage('system', `❌ Ошибка анализа: ${result.error || 'Неизвестная ошибка'}`);
-        }
-    } catch (error) {
-        addMessage('system', `❌ Ошибка: ${error.message}`);
-    } finally {
-        button.disabled = false;
-        button.textContent = originalText;
-    }
-}
-
-/**
- * Обработка доработки модулей
- */
-async function handleEnhanceModules() {
-    const task = prompt('Введите задачу для доработки модулей:');
-    if (!task) return;
-    
-    const button = document.getElementById('enhanceModules');
-    button.disabled = true;
-    const originalText = button.textContent;
-    button.textContent = '⏳ Доработка...';
-    
-    addMessage('system', '🔧 Начало доработки модулей...');
-    
-    try {
-        // Определяем опции для запроса
-        const useOpenRouter = currentProvider === 'openrouter';
-        const model = useOpenRouter ? undefined : currentModel;
-        const openRouterModel = useOpenRouter ? currentOpenRouterModel : undefined;
-        
-        const result = await window.api.enhanceModules(task, {
-            useOpenRouter,
-            model,
-            openRouterModel
-        });
-        
-        if (result.success) {
-            addMessage('system', '✅ Доработка модулей завершена!');
-            if (result.result) {
-                addMessage('ai', typeof result.result === 'string' ? result.result : JSON.stringify(result.result, null, 2));
-            }
-        } else {
-            addMessage('system', `❌ Ошибка: ${result.error || 'Неизвестная ошибка'}`);
         }
     } catch (error) {
         addMessage('system', `❌ Ошибка: ${error.message}`);
@@ -458,13 +310,43 @@ async function loadLogs() {
         const result = await window.api.getLogs();
         if (result.success && result.logs) {
             const logsDiv = document.getElementById('logs');
-            logsDiv.innerHTML = result.logs
-                .slice(-50) // Последние 50 логов
+            
+            // Показываем информацию о сессии если есть
+            let sessionInfoHtml = '';
+            if (result.sessionInfo) {
+                const sessionInfo = result.sessionInfo;
+                sessionInfoHtml = `<div class="log-entry" style="color: #4ec9b0; font-weight: bold;">[Сессия ${sessionInfo.sessionId}] Логов: ${sessionInfo.logCount}, Длительность: ${sessionInfo.duration}</div>`;
+            }
+            
+            // Показываем только логи текущей сессии
+            const logsHtml = result.logs
+                .slice(-50) // Последние 50 логов сессии
                 .map(log => {
                     const time = new Date(log.timestamp).toLocaleTimeString();
-                    return `<div class="log-entry">[${time}] ${escapeHtml(log.message)}</div>`;
+                    const level = log.level || 'info';
+                    const levelColor = level === 'error' ? '#f48771' : 
+                                      level === 'warn' ? '#dcdcaa' : 
+                                      level === 'info' ? '#4ec9b0' : '#858585';
+                    
+                    // Извлекаем информацию о модели из данных лога если есть
+                    let modelInfo = '';
+                    if (log.data) {
+                        if (log.data.requestedModel || log.data.actualModel) {
+                            const reqModel = log.data.requestedModel || 'не указана';
+                            const actModel = log.data.actualModel || 'неизвестна';
+                            if (reqModel === actModel) {
+                                modelInfo = ` [Модель: ${actModel}]`;
+                            } else {
+                                modelInfo = ` [Запрошена: ${reqModel}, Использована: ${actModel}]`;
+                            }
+                        }
+                    }
+                    
+                    return `<div class="log-entry" style="color: ${levelColor};">[${time}] [${level.toUpperCase()}] ${escapeHtml(log.message)}${modelInfo}</div>`;
                 })
                 .join('');
+            
+            logsDiv.innerHTML = sessionInfoHtml + logsHtml;
             logsDiv.scrollTop = logsDiv.scrollHeight;
         }
     } catch (error) {

@@ -24,6 +24,9 @@ class AIRouter {
     this.smartAutoMode = this.config.ai.smartAutoMode;
     this.lastTokenUsage = null;
     this.lastRequestTime = null;
+    this.lastUsedModel = null; // Последняя использованная модель
+    this.lastUsedProvider = null; // Последний использованный провайдер
+    this.lastRequestedModel = null; // Последняя запрошенная модель (для отображения)
   }
 
   /**
@@ -139,7 +142,7 @@ class AIRouter {
     switch (taskType) {
       case 'code':
         // Falcon для генерации кода (по умолчанию)
-        return 'falcon';
+        return 'llama3';
       case 'explanation':
       case 'reasoning':
       case 'translation':
@@ -256,6 +259,14 @@ class AIRouter {
       // Получаем информацию о модели из ответа (если есть)
       const responseModel = response.data?.model || modelName;
       console.log(`✅ OpenRouter: ответ получен от модели: ${responseModel}`);
+      
+      // Обновляем lastUsedModel на фактически использованную модель из ответа API
+      if (responseModel && responseModel !== modelName) {
+        console.log(`⚠️ OpenRouter: запрошена модель "${modelName}", но использована "${responseModel}"`);
+        this.lastUsedModel = responseModel;
+      } else {
+        this.lastUsedModel = modelName;
+      }
 
       if (response.data && response.data.choices && response.data.choices.length > 0) {
         const content = response.data.choices[0].message.content;
@@ -267,11 +278,12 @@ class AIRouter {
         console.log(`📊 OpenRouter: получен ответ длиной ${content.length} символов от модели ${responseModel}`);
         console.log(`🎫 OpenRouter: использовано токенов - всего: ${tokensUsed}, промпт: ${promptTokens}, ответ: ${completionTokens}`);
         
-        // Сохраняем информацию об использовании токенов для логирования
+        // Сохраняем информацию об использовании токенов и модели для логирования
         this.lastTokenUsage = {
           total: tokensUsed,
           prompt: promptTokens,
-          completion: completionTokens
+          completion: completionTokens,
+          model: responseModel // Сохраняем фактически использованную модель из ответа API
         };
         
         return content;
@@ -303,13 +315,25 @@ class AIRouter {
         } else if (status >= 500) {
           errorMessage = `Ошибка сервера OpenRouter (${status}): ${apiError}`;
           suggestion = 'Сервер OpenRouter временно недоступен. Переключитесь на LM Studio или попробуйте позже.';
+        } else if (status === 404) {
+          // Специальная обработка для 404 - модель не найдена
+          errorMessage = `OpenRouter API ошибка (404): Модель "${modelName}" не найдена. ${apiError || 'No endpoints found'}`;
+          
+          // Если это была попытка использовать deepseek-free, предлагаем альтернативу
+          if (modelName && modelName.includes('deepseek-r1:free')) {
+            suggestion = 'Модель deepseek-r1:free может быть недоступна. Попробуйте переключиться на deepseek/deepseek-chat или другую модель.';
+          } else {
+            suggestion = 'Модель не найдена. Попробуйте переключиться на другую модель (например, deepseek/deepseek-chat) или провайдер (LM Studio).';
+          }
+          
+          console.error(`❌ ${errorMessage}`);
+          console.log(`💡 Рекомендация: ${suggestion}`);
         } else {
           errorMessage = `OpenRouter API ошибка (${status}): ${apiError}`;
           suggestion = 'Попробуйте переключиться на другую модель или провайдер (LM Studio).';
+          console.error(`❌ ${errorMessage}`);
+          console.log(`💡 Рекомендация: ${suggestion}`);
         }
-        
-        console.error(`❌ ${errorMessage}`);
-        console.log(`💡 Рекомендация: ${suggestion}`);
       } else if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
         errorMessage = `Не удалось подключиться к OpenRouter: ${error.message}`;
         suggestion = 'Проверьте интернет-соединение или переключитесь на LM Studio (локальный).';
@@ -326,6 +350,12 @@ class AIRouter {
       enhancedError.suggestion = suggestion;
       enhancedError.provider = 'openrouter';
       enhancedError.model = modelName;
+      // Сохраняем statusCode для проверки в sendRequest
+      if (error.response) {
+        enhancedError.statusCode = error.response.status;
+      } else if (error.statusCode) {
+        enhancedError.statusCode = error.statusCode;
+      }
       throw enhancedError;
     }
   }
@@ -476,37 +506,109 @@ class AIRouter {
     }
 
     // Проверка приоритета провайдеров (OpenRouter имеет приоритет если включен)
-    const useOpenRouter = options.useOpenRouter !== undefined 
-      ? options.useOpenRouter 
-      : (this.providers.openRouter.enabled && this.providers.openRouter.apiKey);
+    // Если useOpenRouter явно указан (true или false), используем его
+    // Иначе используем OpenRouter только если он включен и есть API ключ
+    const useOpenRouter = options.useOpenRouter === false 
+      ? false 
+      : (options.useOpenRouter === true 
+        ? true 
+        : (this.providers.openRouter.enabled && this.providers.openRouter.apiKey));
+    
+    // Флаг что пользователь явно выбрал модель
+    const explicitModelChoice = options.useOpenRouter !== undefined || options.model !== undefined || options.openRouterModel !== undefined;
 
     if (useOpenRouter) {
       // Использование OpenRouter
       console.log('🌐 Использование OpenRouter API');
       const isOpenRouterAvailable = await this.checkOpenRouterAvailability();
       
+      // Объявляем переменную вне блока try-catch чтобы она была доступна в catch
+      let openRouterModelName = options.openRouterModel || this.providers.openRouter.selectedModel || 'gpt4';
+      
       if (isOpenRouterAvailable) {
         try {
           // Для OpenRouter используем модель из опций или маппим из конфига
-          let openRouterModelName = options.openRouterModel || this.providers.openRouter.selectedModel || 'gpt4';
+          openRouterModelName = options.openRouterModel || this.providers.openRouter.selectedModel || 'gpt4';
           
           console.log(`🔍 OpenRouter: исходное имя модели из опций: ${openRouterModelName}`);
           console.log(`🔍 OpenRouter: доступные модели в конфиге:`, Object.keys(this.providers.openRouter.models || {}));
+          console.log(`🔍 OpenRouter: все опции:`, options);
           
-          // Если передана строка модели напрямую (например "deepseek"), маппим её
-          if (this.providers.openRouter.models[openRouterModelName]) {
-            openRouterModelName = this.providers.openRouter.models[openRouterModelName];
-            console.log(`✅ OpenRouter: модель найдена в конфиге, маппинг: ${openRouterModelName}`);
-          } else if (!openRouterModelName.includes('/')) {
-            // Если это короткое имя без слэша, используем маппинг
-            openRouterModelName = this.providers.openRouter.models[openRouterModelName] || this.providers.openRouter.defaultModel;
-            console.log(`⚠️ OpenRouter: модель не найдена в конфиге, используем: ${openRouterModelName}`);
-          } else {
+          // Если передана строка модели напрямую (например "deepseek-free"), маппим её
+          if (this.providers.openRouter.models && this.providers.openRouter.models[openRouterModelName]) {
+            const mappedModel = this.providers.openRouter.models[openRouterModelName];
+            console.log(`✅ OpenRouter: модель найдена в конфиге, маппинг: ${openRouterModelName} -> ${mappedModel}`);
+            openRouterModelName = mappedModel;
+          } else if (openRouterModelName === 'deepseek-free' || openRouterModelName === 'deepseek-r1:free') {
+            // Специальная обработка для deepseek-free
+            const mappedModel = this.providers.openRouter.models && this.providers.openRouter.models['deepseek-free'];
+            if (mappedModel) {
+              console.log(`✅ OpenRouter: deepseek-free найдена в конфиге, маппинг: ${openRouterModelName} -> ${mappedModel}`);
+              openRouterModelName = mappedModel;
+            } else {
+              console.log(`⚠️ OpenRouter: deepseek-free не найдена в конфиге, используем прямое имя: deepseek/deepseek-r1:free`);
+              openRouterModelName = 'deepseek/deepseek-r1:free';
+            }
+          } else if (openRouterModelName && !openRouterModelName.includes('/')) {
+            // Если это короткое имя без слэша, используем маппинг или значение по умолчанию
+            const mappedModel = this.providers.openRouter.models && this.providers.openRouter.models[openRouterModelName];
+            if (mappedModel) {
+              console.log(`✅ OpenRouter: модель найдена в конфиге (короткое имя), маппинг: ${openRouterModelName} -> ${mappedModel}`);
+              openRouterModelName = mappedModel;
+            } else {
+              console.log(`⚠️ OpenRouter: модель "${openRouterModelName}" не найдена в конфиге, используем значение по умолчанию: ${this.providers.openRouter.defaultModel}`);
+              openRouterModelName = this.providers.openRouter.defaultModel;
+            }
+          } else if (openRouterModelName && openRouterModelName.includes('/')) {
             console.log(`✅ OpenRouter: используется полное имя модели: ${openRouterModelName}`);
+          } else {
+            console.log(`⚠️ OpenRouter: модель не указана, используем значение по умолчанию: ${this.providers.openRouter.defaultModel}`);
+            openRouterModelName = this.providers.openRouter.defaultModel;
           }
+          
+          // Сохраняем информацию о запрошенной модели
+          this.lastRequestedModel = options.openRouterModel || openRouterModelName;
+          
+          // Сохраняем информацию о модели ДО запроса
+          this.lastUsedModel = openRouterModelName;
+          this.lastUsedProvider = 'openrouter';
+          
+          console.log(`🔍 OpenRouter: отправка запроса к модели "${openRouterModelName}" (запрошена: ${this.lastRequestedModel})`);
           
           return await this.queryOpenRouter(openRouterModelName, prompt, options);
         } catch (error) {
+          // ВАЖНО: Если пользователь явно выбрал модель, НЕ делаем автоматический fallback
+          if (explicitModelChoice) {
+            // Для явно выбранной модели показываем ошибку, а не переключаемся автоматически
+            const requestedModelKey = options.openRouterModel || 'не указана';
+            // Проверяем статус 404 через statusCode или message
+            const is404 = error.statusCode === 404 || (error.message && error.message.includes('404'));
+            if (is404) {
+              throw new Error(`Модель "${openRouterModelName}" (запрошена: ${requestedModelKey}) недоступна (404). Модель была явно выбрана пользователем, поэтому автоматический fallback не выполнен. Попробуйте выбрать другую модель.`);
+            }
+            // Сохраняем информацию о запрошенной модели для отображения
+            this.lastRequestedModel = requestedModelKey;
+            throw error;
+          }
+          
+          // Специальная обработка для 404 - модель не найдена (только если модель НЕ была явно выбрана)
+          const is404 = error.statusCode === 404 || (error.message && error.message.includes('404'));
+          if (is404 && openRouterModelName && openRouterModelName.includes('deepseek-r1:free')) {
+            console.warn('⚠️ Модель deepseek-r1:free недоступна (404), пробуем fallback на deepseek/deepseek-chat');
+            try {
+              // Пробуем использовать deepseek/deepseek-chat как fallback
+              const fallbackModel = 'deepseek/deepseek-chat';
+              console.log(`🔄 Fallback на модель: ${fallbackModel}`);
+              this.lastUsedModel = fallbackModel;
+              this.lastUsedProvider = 'openrouter';
+              return await this.queryOpenRouter(fallbackModel, prompt, options);
+            } catch (fallbackError) {
+              console.warn('⚠️ Fallback на deepseek-chat не удался:', fallbackError.message);
+              // НЕ переключаемся автоматически на другую модель - выбрасываем ошибку
+              throw new Error(`Модель deepseek-r1:free недоступна, fallback на deepseek-chat также не удался: ${fallbackError.message}`);
+            }
+          }
+          
           // Проверяем, не закончились ли токены
           const isTokenError = error.message && (
             error.message.includes('insufficient') || 
@@ -516,13 +618,14 @@ class AIRouter {
             error.message.includes('credits')
           );
           
-          if (isTokenError && this.providers.openRouter.autoFallback) {
-            console.warn('⚠️ Токены OpenRouter закончились, переключаемся на LM Studio');
-            // Fallback на LM Studio при отсутствии токенов
+          // Если пользователь явно выбрал модель, не делаем автоматический fallback
+          // Выбрасываем ошибку, чтобы пользователь знал о проблеме
+          if (isTokenError) {
+            throw new Error(`Недостаточно средств/токенов на OpenRouter для модели "${openRouterModelName}". ${error.message}`);
           } else {
-            console.warn('⚠️ OpenRouter недоступен, пробуем LM Studio:', error.message);
+            // Для других ошибок также выбрасываем, а не делаем автоматический fallback
+            throw new Error(`Ошибка OpenRouter для модели "${openRouterModelName}": ${error.message}`);
           }
-          // Fallback на LM Studio
         }
       } else {
         console.warn('⚠️ OpenRouter недоступен, используем LM Studio');
@@ -533,12 +636,20 @@ class AIRouter {
     const isLMStudioAvailable = await this.checkLMStudioAvailability();
     
     if (!isLMStudioAvailable) {
-      // Если OpenRouter включен, пробуем его как fallback
+      // Если пользователь явно выбрал модель, не делаем автоматический fallback
+      if (explicitModelChoice) {
+        throw new Error(`Выбранная модель недоступна. LM Studio недоступен, и выбранная модель не может быть использована.`);
+      }
+      
+      // Если OpenRouter включен, пробуем его как fallback (только если модель не была явно выбрана)
       if (this.providers.openRouter.enabled && this.providers.openRouter.apiKey) {
         console.log('🔄 Fallback на OpenRouter...');
         try {
           const isOpenRouterAvailable = await this.checkOpenRouterAvailability();
           if (isOpenRouterAvailable) {
+            console.warn('⚠️ ВНИМАНИЕ: Используется fallback на OpenRouter gpt4 вместо выбранной модели');
+            this.lastUsedModel = 'gpt4';
+            this.lastUsedProvider = 'openrouter';
             return await this.queryOpenRouter('gpt4', prompt, options);
           }
         } catch (error) {
@@ -550,6 +661,8 @@ class AIRouter {
       console.warn('LM Studio недоступен, используем fallback');
       if (this.smartAutoMode.fallbackModel) {
         try {
+          this.lastUsedModel = this.smartAutoMode.fallbackModel;
+          this.lastUsedProvider = 'lmstudio';
           return await this.queryLMStudio(this.smartAutoMode.fallbackModel, prompt, options);
         } catch (error) {
           throw new Error(`Fallback также не сработал: ${error.message}`);
@@ -558,38 +671,33 @@ class AIRouter {
       throw new Error('LM Studio недоступен и fallback не настроен');
     }
 
-    // ВАЖНО: Falcon работает только с английским языком
-    // Если выбран Falcon и запрос на русском - переводим через DeepSeek
+    // llama-3-8b-gpt-4o-ru1.0 понимает русский и английский языки, перевод не требуется
     let finalPrompt = prompt;
-    if (selectedModel === 'falcon' && language === 'ru') {
-      console.log('⚠️ Falcon требует английский язык. Переводим запрос через DeepSeek...');
-      try {
-        // Используем DeepSeek для перевода
-        const translationPrompt = `Переведи следующий текст на английский язык. Ответь только переводом, без дополнительных комментариев и без тегов <think> или <think>:\n\n${prompt}`;
-        finalPrompt = await this.queryLMStudio('deepseek', translationPrompt, { max_tokens: 1000 });
-        finalPrompt = this.removeThinkingTags(finalPrompt.trim());
-        console.log('✅ Перевод выполнен:', finalPrompt.substring(0, 100) + '...');
-      } catch (error) {
-        console.warn('⚠️ Не удалось перевести, используем DeepSeek вместо Falcon');
-        // Если перевод не удался, используем DeepSeek
-        selectedModel = 'deepseek';
-        finalPrompt = prompt;
-      }
-    }
 
     // Отправка запроса к выбранной модели
     try {
+      // Сохраняем информацию о модели
+      this.lastUsedModel = selectedModel;
+      this.lastUsedProvider = 'lmstudio';
+      
       return await this.queryLMStudio(selectedModel, finalPrompt, options);
     } catch (error) {
       // Если выбранная модель не сработала, пробуем fallback
       console.warn(`Ошибка с моделью ${selectedModel}, пробуем fallback:`, error.message);
       
-      // Пробуем OpenRouter как fallback
+      // Если пользователь явно выбрал модель, не делаем автоматический fallback
+      if (explicitModelChoice) {
+        throw new Error(`Ошибка с выбранной моделью ${selectedModel}: ${error.message}. Fallback не выполнен, так как модель была явно выбрана пользователем.`);
+      }
+      
+      // Пробуем OpenRouter как fallback (только если модель не была явно выбрана)
       if (this.providers.openRouter.enabled && this.providers.openRouter.apiKey) {
         try {
           const isOpenRouterAvailable = await this.checkOpenRouterAvailability();
           if (isOpenRouterAvailable) {
-            console.log('🔄 Fallback на OpenRouter...');
+            console.warn('⚠️ ВНИМАНИЕ: Используется fallback на OpenRouter gpt4 вместо выбранной модели');
+            this.lastUsedModel = 'gpt4';
+            this.lastUsedProvider = 'openrouter';
             return await this.queryOpenRouter('gpt4', prompt, options);
           }
         } catch (openRouterError) {
@@ -599,6 +707,8 @@ class AIRouter {
 
       if (this.smartAutoMode.fallbackModel && selectedModel !== this.smartAutoMode.fallbackModel) {
         // Для fallback используем оригинальный промпт (DeepSeek понимает русский)
+        this.lastUsedModel = this.smartAutoMode.fallbackModel;
+        this.lastUsedProvider = 'lmstudio';
         return await this.queryLMStudio(this.smartAutoMode.fallbackModel, prompt, options);
       }
       throw error;

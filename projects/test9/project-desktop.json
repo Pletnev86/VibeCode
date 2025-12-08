@@ -1,0 +1,13 @@
+{
+  "projectName": "test9",
+  "projectPath": "C:\\CursorX\\projects\\test9",
+  "createdAt": "2025-12-08T03:08:20.940Z",
+  "lastOpened": "2025-12-08T03:08:20.948Z",
+  "settings": {
+    "aiProvider": "openrouter",
+    "aiModel": "gpt4",
+    "autoSave": true
+  },
+  "chatHistory": [],
+  "files": []
+}

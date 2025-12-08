@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeCode - Выбор проекта</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e1e1e 0%, #2d2d30 100%);
+            color: #d4d4d4;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: #252526;
+            border-radius: 8px;
+            padding: 40px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            text-align: center;
+            background: linear-gradient(135deg, #4ec9b0 0%, #569cd6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #858585;
+            margin-bottom: 40px;
+            font-size: 14px;
+        }
+        
+        .buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 15px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.2s;
+            width: 100%;
+        }
+        
+        button:hover {
+            background: #1177bb;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(14, 99, 156, 0.3);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button.secondary {
+            background: #3e3e42;
+        }
+        
+        button.secondary:hover {
+            background: #4a4a4f;
+        }
+        
+        .project-list {
+            margin-top: 30px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .project-item {
+            background: #2d2d30;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        
+        .project-item:hover {
+            background: #3e3e42;
+            border-color: #0e639c;
+        }
+        
+        .project-name {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+        
+        .project-info {
+            font-size: 12px;
+            color: #858585;
+        }
+        
+        .create-project-form {
+            display: none;
+            margin-top: 20px;
+        }
+        
+        .create-project-form.active {
+            display: block;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            background: #2d2d30;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            color: #d4d4d4;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #0e639c;
+        }
+        
+        .form-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .form-buttons button {
+            flex: 1;
+            padding: 12px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: #858585;
+            padding: 40px 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VibeCode</h1>
+        <p class="subtitle">Автономная IDE для разработки</p>
+        
+        <div class="buttons">
+            <button id="createProjectBtn">Создать проект</button>
+            <button id="openProjectBtn" class="secondary">Открыть проект</button>
+        </div>
+        
+        <div class="create-project-form" id="createProjectForm">
+            <input type="text" id="projectNameInput" placeholder="Введите имя проекта">
+            <div class="form-buttons">
+                <button id="createBtn">Создать</button>
+                <button id="cancelBtn" class="secondary">Отмена</button>
+            </div>
+        </div>
+        
+        <div class="project-list" id="projectList" style="display: none;">
+            <div class="empty-state" id="emptyState">Проекты не найдены</div>
+        </div>
+    </div>
+    
+    <script>
+        // Ждем загрузки DOM
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM загружен, инициализация...');
+            
+            // Используем API через preload
+            const api = window.api;
+            
+            if (!api) {
+                console.error('API не доступен! Проверьте preload.js');
+                alert('Ошибка: API не доступен. Перезапустите приложение.');
+                return;
+            }
+            
+            console.log('API доступен:', Object.keys(api));
+            
+            // Элементы интерфейса
+            const createProjectBtn = document.getElementById('createProjectBtn');
+            const openProjectBtn = document.getElementById('openProjectBtn');
+            const createProjectForm = document.getElementById('createProjectForm');
+            const projectNameInput = document.getElementById('projectNameInput');
+            const createBtn = document.getElementById('createBtn');
+            const cancelBtn = document.getElementById('cancelBtn');
+            const projectList = document.getElementById('projectList');
+            const emptyState = document.getElementById('emptyState');
+            
+            if (!createProjectBtn || !openProjectBtn || !createProjectForm || !projectNameInput || !createBtn || !cancelBtn) {
+                console.error('Не все элементы найдены!');
+                return;
+            }
+            
+            console.log('Все элементы найдены');
+        
+            // Показываем форму создания проекта
+            createProjectBtn.addEventListener('click', () => {
+                console.log('Кнопка "Создать проект" нажата');
+                createProjectForm.classList.add('active');
+                projectNameInput.focus();
+            });
+            
+            // Скрываем форму создания проекта
+            cancelBtn.addEventListener('click', () => {
+                console.log('Кнопка "Отмена" нажата');
+                createProjectForm.classList.remove('active');
+                projectNameInput.value = '';
+            });
+            
+            // Создание проекта
+            createBtn.addEventListener('click', async () => {
+            const projectName = projectNameInput.value.trim();
+            
+            if (!projectName) {
+                alert('Введите имя проекта');
+                return;
+            }
+            
+            if (!api) {
+                alert('API не доступен. Перезапустите приложение.');
+                return;
+            }
+            
+            try {
+                console.log('Создание проекта:', projectName);
+                const result = await api.createProject(projectName);
+                console.log('Результат создания проекта:', result);
+                
+                if (result.success) {
+                    // Открываем проект и переходим к основному интерфейсу
+                    console.log('Открытие проекта:', projectName);
+                    const openResult = await api.openProject(projectName);
+                    console.log('Результат открытия проекта:', openResult);
+                    
+                    if (openResult.success) {
+                        window.location.href = 'index.html';
+                    } else {
+                        alert(`Ошибка открытия проекта: ${openResult.error}`);
+                    }
+                } else {
+                    alert(`Ошибка: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Ошибка создания проекта:', error);
+                alert(`Ошибка создания проекта: ${error.message}`);
+            }
+            });
+            
+            // Открытие проекта
+            openProjectBtn.addEventListener('click', async () => {
+                if (!api) {
+                    alert('API не доступен. Перезапустите приложение.');
+                    return;
+                }
+                
+                // Загружаем список проектов
+                try {
+                    const result = await api.listProjects();
+                    if (result.success) {
+                        displayProjects(result.projects);
+                        projectList.style.display = 'block';
+                    } else {
+                        alert(`Ошибка: ${result.error}`);
+                    }
+                } catch (error) {
+                    console.error('Ошибка загрузки проектов:', error);
+                    alert(`Ошибка загрузки проектов: ${error.message}`);
+                }
+            });
+            
+            // Отображение списка проектов
+            function displayProjects(projects) {
+                if (projects.length === 0) {
+                    emptyState.style.display = 'block';
+                    return;
+                }
+                
+                emptyState.style.display = 'none';
+                projectList.innerHTML = '';
+                
+                projects.forEach(project => {
+                    const projectItem = document.createElement('div');
+                    projectItem.className = 'project-item';
+                    
+                    const projectName = document.createElement('div');
+                    projectName.className = 'project-name';
+                    projectName.textContent = project.name;
+                    
+                    const projectInfo = document.createElement('div');
+                    projectInfo.className = 'project-info';
+                    if (project.lastOpened) {
+                        const date = new Date(project.lastOpened);
+                        projectInfo.textContent = `Последнее открытие: ${date.toLocaleString('ru-RU')}`;
+                    } else {
+                        projectInfo.textContent = 'Проект создан';
+                    }
+                    
+                    projectItem.appendChild(projectName);
+                    projectItem.appendChild(projectInfo);
+                    
+                    projectItem.addEventListener('click', async () => {
+                        try {
+                            const result = await api.openProject(project.name);
+                            if (result.success) {
+                                window.location.href = 'index.html';
+                            } else {
+                                alert(`Ошибка: ${result.error}`);
+                            }
+                        } catch (error) {
+                            console.error('Ошибка открытия проекта:', error);
+                            alert(`Ошибка открытия проекта: ${error.message}`);
+                        }
+                    });
+                    
+                    projectList.appendChild(projectItem);
+                });
+            }
+            
+            // Создание проекта по Enter
+            projectNameInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    createBtn.click();
+                }
+            });
+            
+            console.log('Инициализация завершена');
+        });
+    </script>
+</body>
+</html>
+

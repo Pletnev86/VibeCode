@@ -20,6 +20,14 @@ const logger = initLogger({
   fileOutput: true
 });
 
+// Инициализация сессионного логгера
+const SessionLogger = require('../lib/session-logger');
+const sessionLogger = new SessionLogger(logger);
+
+// Инициализация менеджера проектов
+const ProjectManager = require('../lib/project-manager');
+const projectManager = new ProjectManager();
+
 // Очистка старых логов при старте (старше 7 дней)
 logger.cleanOldLogs(7);
 
@@ -51,21 +59,6 @@ function initKnowledgeBase() {
     knowledgeBase = new KnowledgeBase();
     if (knowledgeBase.available) {
       logger.info('База знаний инициализирована');
-      
-      // Инициализация менеджера документации
-      try {
-        const DocumentationManager = require('../lib/documentation-manager');
-        const documentationManager = new DocumentationManager(knowledgeBase);
-        
-        // Автоматическая индексация документации при старте
-        documentationManager.indexAllDocumentation().then(result => {
-          logger.info(`Документация проиндексирована: ${result.processed} файлов`);
-        }).catch(error => {
-          logger.warn('Ошибка индексации документации', null, error);
-        });
-      } catch (error) {
-        logger.warn('DocumentationManager недоступен', null, error);
-      }
     } else {
       logger.warn('База знаний недоступна, работаем без неё');
     }
@@ -149,8 +142,16 @@ function createWindow() {
       logger.info('Окно приложения готово и отображено');
     });
 
-    // Загрузка HTML страницы
-    const htmlPath = path.join(__dirname, 'index.html');
+    // Загрузка HTML страницы - показываем экран выбора проекта если проект не открыт
+    let htmlPath;
+    if (!projectManager.isProjectOpen()) {
+      htmlPath = path.join(__dirname, 'project-selector.html');
+      logger.info('Проект не открыт, показываем экран выбора проекта');
+    } else {
+      htmlPath = path.join(__dirname, 'index.html');
+      logger.info('Проект открыт, показываем основной интерфейс', { project: projectManager.currentProject });
+    }
+    
     logger.debug('Загрузка HTML файла', { path: htmlPath });
     
     if (!fs.existsSync(htmlPath)) {
@@ -176,31 +177,15 @@ function createWindow() {
  */
 
 // Обработчик генерации проекта (Self-Build)
-ipcMain.handle('generate-project', async (event, task = null, options = {}) => {
+ipcMain.handle('generate-project', async (event, task = null) => {
   try {
-    logger.info('Начало генерации проекта через Self-Build', { task, options });
+    logger.info('Начало генерации проекта через Self-Build', { task });
     
     if (!selfDevAgent) {
       await initAgents();
     }
     
-    // Проверяем сохраненное состояние и предлагаем восстановление
-    if (selfDevAgent.stateManager) {
-      const savedState = selfDevAgent.stateManager.loadState();
-      if (savedState && savedState.inProgress && !options.forceNew) {
-        logger.info('Обнаружено сохраненное состояние Self-Build', {
-          stage: savedState.currentStage,
-          filesGenerated: savedState.filesGenerated?.length || 0
-        });
-        // Автоматически продолжаем если не указано иное
-        if (options.resume !== false) {
-          options.resume = true;
-        }
-      }
-    }
-    
-    // Передаем опции модели в generateProject
-    const result = await selfDevAgent.generateProject(task, options);
+    const result = await selfDevAgent.generateProject(task);
     logger.info('Проект успешно сгенерирован', { 
       filesCount: result.savedFiles?.length || 0,
       files: result.savedFiles 
@@ -253,6 +238,22 @@ ipcMain.handle('send-chat-message', async (event, message, options = {}) => {
       chatContextManager.addToHistory('user', message);
     }
     
+    // Сохраняем сообщение в историю проекта
+    if (projectManager.isProjectOpen()) {
+      const desktop = projectManager.getProjectDesktop();
+      if (desktop) {
+        if (!desktop.chatHistory) {
+          desktop.chatHistory = [];
+        }
+        desktop.chatHistory.push({
+          role: 'user',
+          message: message,
+          timestamp: new Date().toISOString()
+        });
+        projectManager.saveProjectDesktop(desktop);
+      }
+    }
+    
     // Для обычного чата используем AI Router напрямую, а не через агентов
     const AIRouter = require('../ai/router');
     const router = new AIRouter('./config.json');
@@ -270,6 +271,13 @@ ipcMain.handle('send-chat-message', async (event, message, options = {}) => {
     // Формируем системный промпт с контекстом
     let enhancedMessage = message;
     if (chatContextManager) {
+      // Передаем информацию о текущем проекте в ChatContextManager
+      if (projectManager.isProjectOpen()) {
+        const projectPath = projectManager.getCurrentProjectPath();
+        // Обновляем projectRoot в chatContextManager для текущего проекта
+        chatContextManager.projectRoot = projectPath;
+      }
+      
       enhancedMessage = chatContextManager.enhanceChatMessage(message);
       logger.debug('Системный промпт сформирован', { 
         originalLength: message.length,
@@ -289,15 +297,51 @@ ipcMain.handle('send-chat-message', async (event, message, options = {}) => {
     
     responseText = response;
     
+    // Получаем информацию о фактически использованной модели из router
+    const actualModel = router.lastUsedModel || (useOpenRouter ? openRouterModel : model);
+    const actualProvider = router.lastUsedProvider || (useOpenRouter ? 'openrouter' : 'lmstudio');
+    
+    // Определяем запрошенную модель для логирования (из router или из опций)
+    const requestedModel = router.lastRequestedModel || (useOpenRouter ? openRouterModel : model);
+    
+    // Логируем информацию о модели
+    logger.info('📤 Запрос к AI модели', {
+      requestedModel: requestedModel,
+      actualModel: actualModel,
+      provider: actualProvider,
+      useOpenRouter: useOpenRouter,
+      modelChanged: requestedModel !== actualModel
+    });
+    
     const executionTime = Date.now() - startTime;
+    
+    // Сохраняем ответ AI в историю проекта
+    if (projectManager.isProjectOpen()) {
+      const desktop = projectManager.getProjectDesktop();
+      if (desktop) {
+        if (!desktop.chatHistory) {
+          desktop.chatHistory = [];
+        }
+        desktop.chatHistory.push({
+          role: 'assistant',
+          message: responseText,
+          timestamp: new Date().toISOString(),
+          model: actualModel,
+          provider: actualProvider
+        });
+        projectManager.saveProjectDesktop(desktop);
+      }
+    }
     
     logger.info('📥 Ответ AI в чат', {
       response: responseText,
       responseLength: typeof responseText === 'string' ? responseText.length : 0,
       responseType: typeof responseText,
       executionTime: executionTime,
-      model: useOpenRouter ? openRouterModel : model,
-      provider: useOpenRouter ? 'openrouter' : 'lmstudio',
+      requestedModel: requestedModel,
+      actualModel: actualModel,
+      provider: actualProvider,
+      modelChanged: requestedModel !== actualModel,
       timestamp: new Date().toISOString()
     });
     
@@ -429,36 +473,84 @@ ipcMain.handle('send-chat-message', async (event, message, options = {}) => {
     if (parsedFiles.length > 0) {
       logger.info('Найдены файлы в ответе для сохранения', { count: parsedFiles.length, files: parsedFiles.map(f => f.path) });
       
-      // Сохраняем файлы
-      for (const file of parsedFiles) {
-        try {
-          // Нормализуем путь - убираем src/ если уже есть
-          let normalizedPath = file.path.replace(/\\/g, '/');
-          if (normalizedPath.startsWith('src/')) {
-            normalizedPath = normalizedPath.substring(4);
+      // ВАЖНО: Если проект не открыт, файлы не сохраняются
+      if (!projectManager.isProjectOpen()) {
+        logger.warn('⚠️ Проект не открыт, файлы не будут сохранены', { 
+          count: parsedFiles.length,
+          message: 'Откройте проект через "Открыть проект" для работы с файлами.'
+        });
+        // Не сохраняем файлы, но продолжаем выполнение
+      } else {
+        // Сохраняем файлы
+        for (const file of parsedFiles) {
+          try {
+            // Нормализуем путь - убираем src/ если уже есть
+            let normalizedPath = file.path.replace(/\\/g, '/');
+            if (normalizedPath.startsWith('src/')) {
+              normalizedPath = normalizedPath.substring(4);
+            }
+            
+            // Сохраняем файлы ТОЛЬКО в папку проекта
+            const projectPath = projectManager.getCurrentProjectPath();
+            const projectSrcPath = path.join(projectPath, 'src');
+            const targetPath = path.join(projectSrcPath, normalizedPath);
+            
+            // Проверяем, не является ли это системным файлом (защита от перезаписи системных файлов)
+            // Файлы в папке проекта НЕ являются системными, даже если имеют те же имена
+            // Защищаем только файлы в системных директориях (src/, lib/, agents/, ai/ в корне проекта)
+            const fileName = path.basename(targetPath);
+            const protectedSystemFiles = ['main.js', 'preload.js', 'ui.js']; // Только системные JS файлы
+            
+            // Проверяем только системные JS файлы, НЕ HTML/CSS файлы проектов
+            // index.html и style.css в проектах - это нормальные файлы проектов
+            if (protectedSystemFiles.includes(fileName)) {
+              // Проверяем, не находится ли файл в системной директории (вне projects/)
+              const relativeToProjectRoot = path.relative(projectManager.projectRoot, targetPath);
+              if (!relativeToProjectRoot.startsWith('projects' + path.sep)) {
+                logger.warn('⚠️ ЗАЩИТА: Попытка создать системный файл', { 
+                  path: file.path,
+                  fileName: fileName,
+                  message: 'Системные файлы нельзя создавать вне папки projects.'
+                });
+                continue;
+              }
+            }
+            
+            logger.info('Сохранение файла в проект', { 
+              originalPath: file.path,
+              normalizedPath: normalizedPath,
+              projectPath: targetPath,
+              project: projectManager.currentProject
+            });
+            
+            const dir = path.dirname(targetPath);
+            
+            // Проверяем существование файла перед сохранением
+            const fileExists = fs.existsSync(targetPath);
+            
+            // Создаем директории если нужно
+            if (!fs.existsSync(dir)) {
+              fs.mkdirSync(dir, { recursive: true });
+              logger.info('Создана директория для файла', { dir: dir });
+            }
+            
+            // Сохраняем файл
+            fs.writeFileSync(targetPath, file.content, 'utf8');
+            savedFiles.push(targetPath);
+            
+            logger.info('✅ Файл сохранен в проект', { 
+              path: normalizedPath, 
+              fullPath: targetPath,
+              existed: fileExists,
+              size: file.content.length,
+              project: projectManager.currentProject
+            });
+          } catch (error) {
+            logger.error('❌ Ошибка сохранения файла из ответа', error, { 
+              path: file.path,
+              project: projectManager.currentProject
+            });
           }
-          
-          const fullPath = path.join(process.cwd(), 'src', normalizedPath);
-          const dir = path.dirname(fullPath);
-          
-          // Проверяем существование файла перед сохранением
-          const fileExists = fs.existsSync(fullPath);
-          
-          if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-          }
-          
-          fs.writeFileSync(fullPath, file.content, 'utf8');
-          savedFiles.push(fullPath);
-          
-          logger.info('Файл сохранен из ответа чата', { 
-            path: normalizedPath, 
-            fullPath: fullPath,
-            existed: fileExists,
-            size: file.content.length 
-          });
-        } catch (error) {
-          logger.error('Ошибка сохранения файла из ответа', error, { path: file.path });
         }
       }
     } else {
@@ -473,7 +565,12 @@ ipcMain.handle('send-chat-message', async (event, message, options = {}) => {
         filesSaved: savedFiles.length,
         savedFiles: savedFiles,
         filesDeleted: deletedFiles.length,
-        deletedFiles: deletedFiles
+        deletedFiles: deletedFiles,
+        model: actualModel, // Фактически использованная модель
+        provider: actualProvider, // Фактически использованный провайдер
+        requestedModel: useOpenRouter ? openRouterModel : model, // Запрошенная модель
+        executionTime: executionTime,
+        tokens: router.lastTokenUsage || null // Информация о токенах если есть
       }
     };
   } catch (error) {
@@ -490,69 +587,23 @@ ipcMain.handle('send-chat-message', async (event, message, options = {}) => {
   }
 });
 
-// Обработчик получения состояния Self-Build
-ipcMain.handle('get-selfbuild-state', async (event) => {
-  try {
-    if (!selfDevAgent) {
-      await initAgents();
-    }
-    
-    if (selfDevAgent && selfDevAgent.stateManager) {
-      const state = selfDevAgent.stateManager.loadState();
-      return {
-        success: true,
-        state: state
-      };
-    }
-    
-    return {
-      success: true,
-      state: null
-    };
-  } catch (error) {
-    logger.error('Ошибка получения состояния Self-Build', error);
-    return {
-      success: false,
-      error: error.message,
-      state: null
-    };
-  }
-});
-
-// Обработчик очистки состояния Self-Build
-ipcMain.handle('clear-selfbuild-state', async (event) => {
-  try {
-    if (!selfDevAgent) {
-      await initAgents();
-    }
-    
-    if (selfDevAgent && selfDevAgent.stateManager) {
-      selfDevAgent.stateManager.clearState();
-      logger.info('Состояние Self-Build очищено');
-      return { success: true };
-    }
-    
-    return { success: false, error: 'StateManager недоступен' };
-  } catch (error) {
-    logger.error('Ошибка очистки состояния Self-Build', error);
-    return { success: false, error: error.message };
-  }
-});
-
 // Обработчик получения логов
 ipcMain.handle('get-logs', async (event) => {
   try {
-    // Получаем логи из логгера
-    const recentLogs = logger.getRecentLogs(100);
+    // Получаем только логи текущей сессии
+    const sessionLogs = sessionLogger.getSessionLogs(100);
     
     // Также получаем логи из SelfDev Agent если есть
     let agentLogs = [];
     if (selfDevAgent && selfDevAgent.logs) {
-      agentLogs = selfDevAgent.logs;
+      agentLogs = selfDevAgent.logs.map(log => ({
+        ...log,
+        sessionId: sessionLogger.sessionId
+      }));
     }
     
     // Объединяем логи, убираем дубликаты
-    const allLogs = [...recentLogs, ...agentLogs];
+    const allLogs = [...sessionLogs, ...agentLogs];
     
     // Сортируем по времени
     allLogs.sort((a, b) => {
@@ -563,7 +614,8 @@ ipcMain.handle('get-logs', async (event) => {
     
     return {
       success: true,
-      logs: allLogs.slice(0, 100) // Последние 100 логов
+      logs: allLogs.slice(0, 100), // Последние 100 логов сессии
+      sessionInfo: sessionLogger.getSessionInfo()
     };
   } catch (error) {
     logger.error('Ошибка получения логов', error);
@@ -572,6 +624,99 @@ ipcMain.handle('get-logs', async (event) => {
       error: error.message,
       logs: []
     };
+  }
+});
+
+// Обработчик для получения общего лога (для анализа проблем)
+ipcMain.handle('get-general-logs', async (event, limit = 1000) => {
+  try {
+    const generalLogs = sessionLogger.getGeneralLogs(limit);
+    return {
+      success: true,
+      logs: generalLogs,
+      filePath: sessionLogger.generalLogFile
+    };
+  } catch (error) {
+    logger.error('Ошибка получения общего лога', error);
+    return {
+      success: false,
+      error: error.message,
+      logs: []
+    };
+  }
+});
+
+// Обработчики для управления проектами
+ipcMain.handle('create-project', async (event, projectName) => {
+  try {
+    const project = projectManager.createProject(projectName);
+    logger.info('Проект создан', { name: project.name, path: project.path });
+    
+    // Обновляем logger для использования папки проекта
+    logger.setCurrentProject(projectManager.getCurrentProjectPath());
+    
+    return { success: true, project: project };
+  } catch (error) {
+    logger.error('Ошибка создания проекта', error, { projectName });
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('open-project', async (event, projectName) => {
+  try {
+    const desktop = projectManager.openProject(projectName);
+    logger.info('Проект открыт', { name: projectName });
+    
+    // Обновляем logger для использования папки проекта
+    logger.setCurrentProject(projectManager.getCurrentProjectPath());
+    
+    // Загружаем историю чатов в chatContextManager
+    if (chatContextManager && desktop.chatHistory && desktop.chatHistory.length > 0) {
+      // Очищаем текущую историю
+      chatContextManager.history = [];
+      
+      // Загружаем историю из проекта
+      desktop.chatHistory.forEach(msg => {
+        chatContextManager.addToHistory(msg.role, msg.message);
+      });
+      
+      logger.info('История чатов загружена', { count: desktop.chatHistory.length });
+    }
+    
+    return { success: true, desktop: desktop };
+  } catch (error) {
+    logger.error('Ошибка открытия проекта', error, { projectName });
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('list-projects', async (event) => {
+  try {
+    const projects = projectManager.listProjects();
+    return { success: true, projects: projects };
+  } catch (error) {
+    logger.error('Ошибка получения списка проектов', error);
+    return { success: false, error: error.message, projects: [] };
+  }
+});
+
+ipcMain.handle('get-current-project', async (event) => {
+  try {
+    if (projectManager.isProjectOpen()) {
+      const desktop = projectManager.getProjectDesktop();
+      return { 
+        success: true, 
+        project: {
+          name: projectManager.currentProject,
+          path: projectManager.getCurrentProjectPath(),
+          desktop: desktop
+        }
+      };
+    }
+    return { success: false, project: null };
+  } catch (error) {
+    logger.error('Ошибка получения текущего проекта', error);
+    return { success: false, error: error.message };
   }
 });
 
@@ -588,6 +733,46 @@ ipcMain.handle('read-file', async (event, filePath) => {
 // Обработчик записи файла
 ipcMain.handle('write-file', async (event, filePath, data) => {
   try {
+    const resolvedPath = path.resolve(filePath);
+    
+    // ЗАЩИТА СИСТЕМНЫХ ФАЙЛОВ
+    if (projectManager.isSystemFile(resolvedPath)) {
+      const fileName = path.basename(resolvedPath);
+      logger.warn('⚠️ ЗАЩИТА: Попытка перезаписать системный файл', { 
+        path: filePath,
+        fileName: fileName
+      });
+      return { 
+        success: false, 
+        error: `⚠️ ЗАЩИТА: Системный файл "${fileName}" защищен от редактирования. Создайте проект через "Создать проект" для работы с файлами.`
+      };
+    }
+    
+    // Если проект открыт, сохраняем файлы только в папку проекта
+    if (projectManager.isProjectOpen()) {
+      const projectPath = projectManager.getCurrentProjectPath();
+      const projectSrcPath = path.join(projectPath, 'src');
+      
+      // Если файл должен быть в src/, сохраняем в папку проекта
+      if (resolvedPath.includes('src') && !resolvedPath.includes('projects')) {
+        const relativePath = path.relative(process.cwd(), resolvedPath);
+        if (relativePath.startsWith('src')) {
+          const projectFilePath = path.join(projectSrcPath, relativePath.replace('src/', ''));
+          const dir = path.dirname(projectFilePath);
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+          }
+          fs.writeFileSync(projectFilePath, data, 'utf8');
+          logger.info('Файл записан в проект', { 
+            originalPath: filePath,
+            projectPath: projectFilePath,
+            project: projectManager.currentProject
+          });
+          return { success: true, projectPath: projectFilePath };
+        }
+      }
+    }
+    
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -751,6 +936,10 @@ ipcMain.handle('enhance-modules', async (event, task, options = {}) => {
 app.whenReady().then(async () => {
   logger.info('Инициализация приложения VibeCode');
   
+  // Очищаем сессию при запуске новой сессии
+  sessionLogger.clearSession();
+  logger.info('Новая сессия VibeCode начата', { sessionId: sessionLogger.sessionId });
+  
   // Инициализация базы знаний
   initKnowledgeBase();
   
@@ -775,6 +964,13 @@ app.whenReady().then(async () => {
 
 // Закрытие приложения при закрытии всех окон
 app.on('window-all-closed', () => {
+  // Сохраняем сессионные логи перед закрытием
+  try {
+    sessionLogger.saveSessionToGeneralLog();
+  } catch (error) {
+    console.error('Ошибка сохранения сессионных логов:', error);
+  }
+  
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -787,8 +983,16 @@ app.on('activate', () => {
   }
 });
 
-// Закрытие базы знаний при выходе
+// Закрытие базы знаний и сохранение сессии при выходе
 app.on('before-quit', () => {
+  // Сохраняем сессионные логи в общий лог
+  try {
+    sessionLogger.saveSessionToGeneralLog();
+    logger.info('Сессионные логи сохранены в общий лог');
+  } catch (error) {
+    logger.error('Ошибка сохранения сессионных логов', error);
+  }
+  
   if (knowledgeBase && knowledgeBase.available) {
     try {
       knowledgeBase.close();

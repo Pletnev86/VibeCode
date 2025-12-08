@@ -10,12 +10,14 @@
         "src\\oldfiles\\ai",
         "src\\oldfiles\\ui",
         "src\\ui",
+        "src\\user-website-backup",
         "src\\Новая папка"
       ],
       "files": [
         "src\\agents\\explain.js",
         "src\\agents\\refactor.js",
         "src\\ai\\router.js",
+        "src\\config.json",
         "src\\filepath",
         "src\\index.html",
         "src\\main.js",
@@ -25,22 +27,32 @@
         "src\\oldfiles\\style.css",
         "src\\oldfiles\\testi.txt",
         "src\\oldfiles\\ui.js",
+        "src\\package.json",
         "src\\preload.js",
+        "src\\project-selector.html",
+        "src\\project-selector.js",
+        "src\\renderer.js",
         "src\\script.js",
         "src\\style.css",
+        "src\\styles.css",
         "src\\testi.txt",
+        "src\\testi2.txt",
         "src\\ui\\index.html",
         "src\\ui\\ui.js",
-        "src\\ui.js"
+        "src\\ui.js",
+        "src\\user-website-backup\\index.html",
+        "src\\user-website-backup\\script.js",
+        "src\\user-website-backup\\styles.css"
       ],
       "mainFiles": [
         "src\\index.html",
         "src\\main.js",
         "src\\oldfiles\\index.html",
         "src\\oldfiles\\main.js",
-        "src\\ui\\index.html"
+        "src\\ui\\index.html",
+        "src\\user-website-backup\\index.html"
       ]
     },
-    "timestamp": 1765134999655
+    "timestamp": 1765167914279
   }
 }

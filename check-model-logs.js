@@ -120,3 +120,4 @@ console.log('\n💡 Совет: Чтобы использовать deepseek-fre
 console.log('   1. AI Провайдер → OpenRouter (API)');
 console.log('   2. Модель OpenRouter → deepseek/deepseek-r1:free');
 
+
